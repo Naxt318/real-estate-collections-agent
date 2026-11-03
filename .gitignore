@@ -218,3 +218,35 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Google Cloud credentials
+application_default_credentials.json
+gcloud-credentials.json
+service-account*.json
+*service-account*.json
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Secret and credential folders
+secrets/
+credentials/
+private_keys/
+
+# Local databases
+*.sqlite
+*.sqlite3
+
+# Environment file with alternate name
+.environmental
