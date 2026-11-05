@@ -1,0 +1,27 @@
+{
+  "name": "real-estate-collections-agent",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "test:integration": "pnpm --filter backend --fail-if-no-match run test:integration",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && pnpm db:up",
+    "db:migrate": "pnpm --filter backend --fail-if-no-match run db:migrate",
+    "db:migrate:deploy": "pnpm --filter backend --fail-if-no-match run db:migrate:deploy",
+    "db:seed": "pnpm --filter backend --fail-if-no-match run db:seed"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10"
+  }
+}
