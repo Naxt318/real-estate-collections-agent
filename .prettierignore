@@ -1,0 +1,8 @@
+pnpm-lock.yaml
+**/dist
+**/.next
+**/generated
+**/coverage
+CLAUDE.md
+**/migrations/**/*.sql
+docs/superpowers/
