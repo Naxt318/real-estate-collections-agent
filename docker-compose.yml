@@ -1,0 +1,21 @@
+# Local development database only. The apps run on the host.
+# Values come from .env (copy .env.example and fill in the passwords).
+services:
+  postgres:
+    image: postgres:17
+    env_file: .env # POSTGRES_USER/PASSWORD/DB and APP_DB_PASSWORD (read by the init script)
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # TCP check: the image's temporary init server listens only on the socket,
+      # so this stays unhealthy until the init scripts have finished.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pgdata:
