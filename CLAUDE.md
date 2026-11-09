@@ -991,6 +991,27 @@ Use Google Cloud for deployment and infrastructure.
 
 Testing is mandatory, not optional.
 
+### Test-driven development (TDD)
+
+All new behaviour and every bug fix must be built test-first. Do not write production code until a failing test asks for it.
+
+The cycle:
+
+1. **Red:** write a test for the next small piece of behaviour. Run it and watch it fail for the expected reason.
+2. **Green:** write the minimum code that makes the test pass. Run it and watch it pass.
+3. **Refactor:** clean up the code and the tests while every test stays green.
+4. Repeat for the next piece of behaviour.
+
+Mandatory rules:
+
+1. TDD applies to the backend, the frontend and the Python ML service.
+2. A test that passes before the implementation exists proves nothing. Fix the test before you continue.
+3. A bug fix starts with a test that reproduces the bug and fails.
+4. Frontend logic needs unit tests, for example data fetching, validation, formatting and state handling. Components need tests once they contain behaviour.
+5. Only the following are exempt: generated scaffolding, pure configuration and markup with no logic. Build, lint and typecheck verify them instead.
+6. A pull request that adds behaviour without tests must not be merged. Reviewers check that the tests cover the change.
+7. Never delete or weaken a test to make a build pass. Fix the code, or agree the change in behaviour with the team.
+
 ### Unit testing
 
 Test:
@@ -1359,7 +1380,7 @@ Follow these rules whenever modifying the repository.
 10. Avoid duplicated business logic.
 11. Avoid unnecessary abstractions.
 12. Handle errors explicitly.
-13. Add tests for important logic.
+13. Follow test-driven development (§18): write a failing test before the code that makes it pass.
 14. Never hardcode credentials.
 15. Never bypass the established architecture for convenience.
 
@@ -1407,7 +1428,7 @@ Do not silently invent:
 12. Payment success must be verified.
 13. Customer communication must be respectful and compliant.
 14. Sensitive credentials must never be committed.
-15. Tests are required for business-critical functionality.
+15. Development is test-driven, and tests are required for all new behaviour.
 16. Do not introduce unnecessary technologies or features.
 17. Build a modular monolith before considering microservices.
 18. Security and tenant isolation must never be sacrificed for development speed.
