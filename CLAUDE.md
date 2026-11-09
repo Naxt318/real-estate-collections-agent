@@ -1067,6 +1067,60 @@ main
 - Protect production branches.
 - Do not force-push shared branches.
 
+### Linear commit history
+
+`main` and `develop` must have a linear history with no merge commits.
+
+Mandatory rules:
+
+1. Never create merge commits on `main` or `develop`.
+2. Merge pull requests with **Rebase and merge** (or **Squash and merge** for a branch with noisy work-in-progress commits). Never use **Create a merge commit**.
+3. Before opening or merging a pull request, rebase the feature branch onto the latest base branch and re-run tests.
+4. Pull with rebase, never with merge.
+5. Promote `develop` to `main` by fast-forward only.
+6. Force-pushing is allowed only on your own feature branch, only after a rebase, and only with `--force-with-lease`.
+7. Never rebase or force-push `main` or `develop`. If a history rewrite is unavoidable, agree it with the team first and tell everyone to reset their local copy afterwards.
+
+One-time local setup:
+
+```bash
+git config --global pull.rebase true
+git config --global rebase.autoStash true
+```
+
+Updating a feature branch before a pull request:
+
+```bash
+git fetch origin
+git rebase origin/develop
+# resolve conflicts, then: git add <files> && git rebase --continue
+pnpm lint && pnpm typecheck && pnpm test
+git push --force-with-lease
+```
+
+Promoting `develop` to `main`:
+
+```bash
+git switch main
+git pull --ff-only
+git merge --ff-only origin/develop
+git push origin main
+```
+
+If `--ff-only` fails, `main` has commits that `develop` does not. Rebase `develop` work onto `main` through a pull request instead of merging.
+
+Verifying history is linear (both commands must print nothing):
+
+```bash
+git rev-list --merges origin/main
+git rev-list --merges origin/develop
+```
+
+Required GitHub repository settings:
+
+- Settings → General → Pull Requests: disable **Allow merge commits**; keep **Allow rebase merging** (and optionally **Allow squash merging**) enabled.
+- Branch protection or rulesets for `main` and `develop`: enable **Require linear history**, **Require a pull request before merging**, and block force pushes and deletions.
+
 ### Environment files
 
 Commit `.env.example` with variable names and empty placeholders.
