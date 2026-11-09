@@ -1074,12 +1074,13 @@ main
 Mandatory rules:
 
 1. Never create merge commits on `main` or `develop`.
-2. Merge pull requests with **Rebase and merge** (or **Squash and merge** for a branch with noisy work-in-progress commits). Never use **Create a merge commit**.
+2. Merge feature pull requests into `develop` with **Rebase and merge** (or **Squash and merge** for a branch with noisy work-in-progress commits). Never use **Create a merge commit**.
 3. Before opening or merging a pull request, rebase the feature branch onto the latest base branch and re-run tests.
 4. Pull with rebase, never with merge.
-5. Promote `develop` to `main` by fast-forward only.
+5. Promote `develop` to `main` by a local fast-forward push only, never through a GitHub pull request. GitHub's **Rebase and merge** always rewrites commits with new IDs, even when a fast-forward is possible, so a `develop` → `main` pull request leaves the two branches with different copies of the same commits.
 6. Force-pushing is allowed only on your own feature branch, only after a rebase, and only with `--force-with-lease`.
 7. Never rebase or force-push `main` or `develop`. If a history rewrite is unavoidable, agree it with the team first and tell everyone to reset their local copy afterwards.
+8. Delete a feature branch once its pull request is merged. Its commits now have different IDs on `develop`, so continuing on it causes divergence. Start the next piece of work on a new branch from the latest `origin/develop`.
 
 One-time local setup:
 
@@ -1107,7 +1108,25 @@ git merge --ff-only origin/develop
 git push origin main
 ```
 
-If `--ff-only` fails, `main` has commits that `develop` does not. Rebase `develop` work onto `main` through a pull request instead of merging.
+If `--ff-only` fails, `main` has commits that `develop` does not. Stop and resolve it with the team; do not merge.
+
+Starting new work after a pull request is merged:
+
+```bash
+git fetch --prune origin
+git switch -c feature/<name> origin/develop
+git branch -D <old-feature-branch>
+```
+
+Resetting a local `main` or `develop` that has diverged from GitHub (for example after an agreed history rewrite). Push any unique local work to a feature branch first; this discards local commits:
+
+```bash
+git fetch --prune origin
+git switch develop
+git reset --hard origin/develop
+git switch main
+git reset --hard origin/main
+```
 
 Verifying history is linear (both commands must print nothing):
 
@@ -1119,7 +1138,8 @@ git rev-list --merges origin/develop
 Required GitHub repository settings:
 
 - Settings → General → Pull Requests: disable **Allow merge commits**; keep **Allow rebase merging** (and optionally **Allow squash merging**) enabled.
-- Branch protection or rulesets for `main` and `develop`: enable **Require linear history**, **Require a pull request before merging**, and block force pushes and deletions.
+- Branch protection or rulesets for `develop`: enable **Require linear history**, **Require a pull request before merging**, and block force pushes and deletions.
+- Branch protection or rulesets for `main`: enable **Require linear history**, block force pushes and deletions, and restrict pushes to the maintainers who promote `develop`. Do not require a pull request for `main`, because promotion is a fast-forward push.
 
 ### Environment files
 
