@@ -1080,13 +1080,14 @@ Mandatory rules:
 5. Promote `develop` to `main` by a local fast-forward push only, never through a GitHub pull request. GitHub's **Rebase and merge** always rewrites commits with new IDs, even when a fast-forward is possible, so a `develop` → `main` pull request leaves the two branches with different copies of the same commits.
 6. Force-pushing is allowed only on your own feature branch, only after a rebase, and only with `--force-with-lease`.
 7. Never rebase or force-push `main` or `develop`. If a history rewrite is unavoidable, agree it with the team first and tell everyone to reset their local copy afterwards.
-8. Delete a feature branch once its pull request is merged. Its commits now have different IDs on `develop`, so continuing on it causes divergence. Start the next piece of work on a new branch from the latest `origin/develop`.
+8. Delete a feature branch once its pull request is merged. GitHub deletes the remote branch automatically; delete your local copy yourself. Its commits now have different IDs on `develop`, so continuing on it causes divergence. Start the next piece of work on a new branch from the latest `origin/develop`.
 
 One-time local setup:
 
 ```bash
 git config --global pull.rebase true
 git config --global rebase.autoStash true
+git config --global fetch.prune true
 ```
 
 Updating a feature branch before a pull request:
@@ -1137,7 +1138,7 @@ git rev-list --merges origin/develop
 
 Required GitHub repository settings:
 
-- Settings → General → Pull Requests: disable **Allow merge commits**; keep **Allow rebase merging** (and optionally **Allow squash merging**) enabled.
+- Settings → General → Pull Requests: disable **Allow merge commits**; keep **Allow rebase merging** (and optionally **Allow squash merging**) enabled; enable **Automatically delete head branches** so merged feature branches are removed from GitHub.
 - Branch protection or rulesets for `develop`: enable **Require linear history**, **Require a pull request before merging**, and block force pushes and deletions.
 - Branch protection or rulesets for `main`: enable **Require linear history**, block force pushes and deletions, and restrict pushes to the maintainers who promote `develop`. Do not require a pull request for `main`, because promotion is a fast-forward push.
 
