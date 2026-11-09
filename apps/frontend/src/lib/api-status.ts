@@ -8,9 +8,9 @@ const READINESS_TIMEOUT_MS = 2000;
  * Checks backend readiness from the server. Never throws: any network error,
  * timeout or non-2xx response is reported as 'unavailable'.
  */
-export async function getApiStatus(): Promise<ApiStatus> {
+export async function getApiStatus(baseUrl: string = env.API_BASE_URL): Promise<ApiStatus> {
   try {
-    const res = await fetch(`${env.API_BASE_URL}/api/v1/health/ready`, {
+    const res = await fetch(`${baseUrl}/api/v1/health/ready`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(READINESS_TIMEOUT_MS),
     });
