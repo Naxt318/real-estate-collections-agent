@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { MailIcon } from '@/components/ui/icons';
 import { TextField } from '@/components/ui/text-field';
 import { validateForgotPassword, type FieldErrors } from '@/lib/auth-validation';
 import { AuthLink } from './auth-link';
@@ -34,6 +35,8 @@ export function ForgotPasswordForm() {
           name="email"
           type="email"
           autoComplete="email"
+          placeholder="you@company.com"
+          icon={<MailIcon />}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           error={errors.email}
