@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { TextField } from '@/components/ui/text-field';
+import { PasswordField } from '@/components/ui/password-field';
 import {
   MIN_PASSWORD_LENGTH,
   validateResetPassword,
@@ -34,10 +34,9 @@ export function ResetPasswordForm() {
     <div className="flex flex-col gap-6">
       {notice && <Alert tone="info">{notice}</Alert>}
       <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <TextField
+        <PasswordField
           label="New password"
           name="password"
-          type="password"
           autoComplete="new-password"
           hint={`At least ${MIN_PASSWORD_LENGTH} characters`}
           value={password}
@@ -45,10 +44,9 @@ export function ResetPasswordForm() {
           error={errors.password}
           required
         />
-        <TextField
+        <PasswordField
           label="Confirm new password"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}

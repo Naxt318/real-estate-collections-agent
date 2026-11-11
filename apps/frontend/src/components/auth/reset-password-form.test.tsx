@@ -41,6 +41,13 @@ describe('ResetPasswordForm', () => {
     expect(screen.getByRole('status')).toHaveTextContent("Password reset isn't connected yet.");
   });
 
+  it('lets the user show the new password', async () => {
+    render(<ResetPasswordForm />);
+    const [toggle] = screen.getAllByRole('button', { name: 'Show password' });
+    await userEvent.click(toggle!);
+    expect(screen.getByLabelText(/^New password/)).toHaveAttribute('type', 'text');
+  });
+
   it('links back to sign in', () => {
     render(<ResetPasswordForm />);
     expect(screen.getByRole('link', { name: 'Back to sign in' })).toHaveAttribute('href', '/login');

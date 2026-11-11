@@ -263,3 +263,6 @@ apps/backend/src/generated/
 # Re-include app source dirs hidden by the Python rules above (lib/, build/)
 !apps/**/lib/
 !apps/**/build/
+
+# Local agent scratch (brainstorm mockups, plan ledgers)
+.superpowers/
