@@ -20,7 +20,8 @@
     "db:migrate": "pnpm --filter backend --fail-if-no-match run db:migrate",
     "db:migrate:deploy": "pnpm --filter backend --fail-if-no-match run db:migrate:deploy",
     "db:verify": "bash scripts/verify-db.sh",
-    "db:seed": "pnpm --filter backend --fail-if-no-match run db:seed"
+    "db:seed": "pnpm --filter backend --fail-if-no-match run db:seed",
+    "image:verify": "bash scripts/verify-image.sh"
   },
   "devDependencies": {
     "prettier": "3.9.10"
