@@ -243,9 +243,10 @@ CREATE POLICY tenant_isolation ON "users"
 
 **Interfaces:**
 - Image contract for Cloud Run: listens on `$PORT` (via the existing env schema), runs as user `node`, `CMD ["node", "dist/main.js"]`, contains no `.env*` files and no dev deps.
+- The runtime stage sets `ENV NODE_ENV=production`. The env schema only rejects `ALLOW_DEV_TENANT_HEADER=true` when `NODE_ENV` is `production`, and `NODE_ENV` defaults to `development`, so a deploy that forgot it would silently allow the dev tenant header (found in the Task 3 review, PR #14).
 
 - [ ] **Step 1:** Multi-stage on `node:24-slim`. Build stage: `corepack enable`, `pnpm install --frozen-lockfile --filter backend...`, `prisma generate`, `pnpm --filter backend build`, then `pnpm --filter backend deploy --prod /out` (if pnpm 12 requires it, set `inject-workspace-packages=true` in `.npmrc` or use `--legacy`, and note which). Runtime stage copies `/out`. `.dockerignore`: `**/node_modules`, `**/.env*`, `!**/.env.example`, `**/dist`, `**/.next`, `.git`.
-- [ ] **Step 2:** Verify: `docker build -f apps/backend/Dockerfile -t collections-backend .` succeeds. `docker run --rm -e DATABASE_URL=postgresql://u:p@host.docker.internal:5432/x -e PORT=8080 -p 8080:8080 collections-backend` → `curl localhost:8080/api/v1/health/live` 200. `docker run --rm collections-backend whoami` → `node`. `docker run --rm collections-backend sh -c 'ls -a; find / -name ".env" -not -path "/proc/*" 2>/dev/null'` lists no `.env`.
+- [ ] **Step 2:** Verify: `docker build -f apps/backend/Dockerfile -t collections-backend .` succeeds. `docker run --rm -e DATABASE_URL=postgresql://u:p@host.docker.internal:5432/x -e PORT=8080 -p 8080:8080 collections-backend` → `curl localhost:8080/api/v1/health/live` 200. `docker run --rm collections-backend whoami` → `node`. `docker run --rm collections-backend printenv NODE_ENV` → `production`. `docker run --rm -e DATABASE_URL=postgresql://u:p@localhost:5432/x -e ALLOW_DEV_TENANT_HEADER=true collections-backend` exits non-zero with `ALLOW_DEV_TENANT_HEADER: must not be enabled in production`. `docker run --rm collections-backend sh -c 'ls -a; find / -name ".env" -not -path "/proc/*" 2>/dev/null'` lists no `.env`.
 - [ ] **Step 3:** Commit `build(backend): Cloud Run-ready container image`.
 
 ### Task 11: Documentation and final verification
