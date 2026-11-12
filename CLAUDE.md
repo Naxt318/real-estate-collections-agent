@@ -375,31 +375,19 @@ Prisma must be the authoritative database schema and migration system.
 - Support multiple bookings per customer.
 - Support multiple instalments per booking.
 - Support multiple payment transactions against an instalment.
-- Maintain an auditable payment ledger.
-- Calculate outstanding balances from verified transactions.
+- The builder's CRM is the payment ledger. We mirror its payments; we never record or edit a payment ourselves.
+- Calculate outstanding balances from mirrored CRM data; when the CRM reports its own outstanding figure, the CRM wins.
+- The AI chases only the buyer's share of a demand, never a home-loan bank tranche.
 - Never mark a payment successful based only on an AI conversation.
 
 ### Core database models
 
-Design the schema to support:
+The authoritative data model is `docs/superpowers/specs/2026-11-13-collections-data-model-design.md`. Read it before changing the schema. In short:
 
-- Tenant
-- User
-- Role / Permission
-- Project
-- Unit
-- Customer
-- Booking
-- PaymentSchedule
-- Payment
-- RiskScore
-- CallLog
-- PaymentPromise
-- Dispute
-- CommunicationPreference
-- AIConversation
-- IntegrationConfiguration
-- AuditLog
+- **Mirrored from the CRM (read-only; only the sync writes them):** Project, Tower, Unit, Person, Booking, BookingApplicant, Demand, Payment. Each carries `source`, `externalId`, `lastSyncedAt`, `rawPayload`, unique on `(tenantId, source, externalId)`.
+- **Owned by us:** Tenant, User (with role), IntegrationConnection, SyncRun, CollectionPolicy, CadenceStep, ApprovedTalkingPoint, CollectionCase, CaseDemand, ScheduledCall, CallAttempt, PaymentPromise, OutboundMessage, Escalation, RiskScore, ScoreEvent, AuditLog, OutboxEvent.
+
+One schema serves every builder: shared tables, `tenantId` on every tenant-owned row, PostgreSQL RLS. A new builder means new data and possibly a new CRM adapter, never a migration.
 
 Add other models only when justified by a documented business requirement.
 
@@ -507,17 +495,13 @@ Store structured outcomes in the database.
 
 ### Step 7 — Payment Processing
 
-When appropriate, generate a payment link through an approved payment gateway.
+We do not process payments. When the buyer agrees to pay, the backend obtains the **builder's CRM payment link** for the buyer's outstanding share and sends it by email (transactional, not marketing) at the agreed time.
 
-The payment gateway must notify the backend through a verified webhook or an authorised reconciliation process.
+The buyer pays inside the CRM. The CRM notifies the backend through a verified webhook or the scheduled sync.
 
-Only after backend verification should the payment be marked successful.
-
-Update:
-- Payment record.
-- Instalment balance.
-- Booking outstanding balance.
-- Customer payment history.
+Only after the CRM reports the payment is the demand marked paid. Then update:
+- Mirrored payment and demand records.
+- Collection case and payment promise status.
 - Builder dashboard.
 
 ### Step 8 — Follow-up and Reporting
@@ -602,6 +586,9 @@ The AI must:
 - Never invent payment information.
 - Never promise an unapproved waiver or discount.
 - Never pressure a customer experiencing hardship.
+- Mention late-payment interest only at the rate from the booking or the builder's policy; if neither exists, do not mention a rate.
+- Mention credit-score or loan impact only through builder-approved talking points, and only when the booking has a home loan. Paying a builder late does not by itself affect a credit score.
+- Never agree a payment date beyond the builder's limit; record it for the collections lead's approval.
 - Escalate disputes to a human.
 - Respect opt-out and communication preferences.
 - Avoid unnecessary repetition.
@@ -649,27 +636,22 @@ Production calls must remain disabled until legal, operational and telephony app
 
 # 11. PAYMENT AND FINANCIAL INTEGRATION
 
-Payment processing must be modular.
-
-Use a payment gateway abstraction so that another provider can be introduced without rewriting collection logic.
+We do not run a payment gateway. The builder's CRM is the ledger: it issues payment links, takes the payment and records it. Payment links and payment confirmation come through the CRM provider abstraction (§12), so a new CRM needs only a new adapter.
 
 ### Payment requirements
 
-- Generate payment links.
-- Associate links with the correct customer and instalment.
-- Validate webhook signatures.
-- Handle duplicate webhooks idempotently.
-- Record payment references.
-- Support partial payments.
-- Reconcile payment status.
-- Update outstanding balances.
-- Maintain transaction history.
+- Request payment links from the CRM for the buyer's outstanding share.
+- Associate links with the correct person, collection case and demands.
+- Validate CRM webhook signatures with the tenant's own secret.
+- Handle duplicate webhooks and re-syncs idempotently.
+- Mirror CRM payment references, payer type (buyer or bank) and partial payments.
+- Reconcile our mirror against the CRM on a schedule.
 
 ### Important rule
 
 A customer saying "I have paid" does not mean payment is successful.
 
-The backend must verify the payment through the gateway or an authorised ledger reconciliation process.
+The backend must see the payment in the CRM, through a verified webhook or reconciliation, before marking anything paid.
 
 ### Interest and late fees
 
@@ -1263,13 +1245,13 @@ Do not attempt to build everything simultaneously.
 - Call logging.
 - Call outcome processing.
 
-### Phase 6 — Payment Integration
+### Phase 6 — CRM Payment Loop
 
-- Payment gateway abstraction.
-- Payment link generation.
-- Webhook verification.
-- Payment reconciliation.
-- Balance updates.
+- CRM payment link retrieval.
+- Email payment nudges on the agreed date.
+- CRM webhook verification.
+- Payment reconciliation against the CRM.
+- Case and promise status updates.
 
 ### Phase 7 — Intelligence and Analytics
 
@@ -1300,8 +1282,8 @@ The first version must demonstrate one complete business workflow:
 5. AI agent initiates a permitted test call.
 6. AI agent understands the homebuyer's response.
 7. System records the call outcome.
-8. AI agent can provide a payment link when appropriate.
-9. Backend verifies the payment.
+8. Buyer agrees a payment date; the system emails the CRM payment link on that date.
+9. CRM reports the payment and the backend marks it paid.
 10. Dashboard reflects the updated payment status.
 
 This is the first complete success loop.
@@ -1315,6 +1297,8 @@ Unless specifically approved, do not build:
 - WhatsApp marketing.
 - SMS marketing campaigns.
 - Email marketing.
+
+Transactional payment-link messages sent after a call are in scope; marketing is not. Use email for the MVP, because SMS needs DLT template registration.
 - Accounting software.
 - Employee management.
 - Unnecessary AI agents.
