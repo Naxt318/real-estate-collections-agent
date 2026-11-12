@@ -46,9 +46,7 @@ export function AuthLayout({
             ))}
           </ul>
         </div>
-        <p className="relative text-sm text-indigo-200/70">
-          © {new Date().getFullYear()} Collections Intelligence
-        </p>
+        <p className="relative text-sm text-indigo-200/70">© Collections Intelligence</p>
       </aside>
 
       <main className="flex flex-col items-center justify-center bg-white px-6 py-12 dark:bg-zinc-950">

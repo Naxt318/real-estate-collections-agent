@@ -51,7 +51,7 @@ The full product and engineering spec is in [`CLAUDE.md`](CLAUDE.md).
 - **Phase 1 implementation plan** ([`docs/superpowers/plans/2026-11-04-phase-1-saas-foundation.md`](docs/superpowers/plans/2026-11-04-phase-1-saas-foundation.md)): 13 tasks, each with acceptance criteria and exact pinned versions.
 - **Task 1: monorepo skeleton.** This covers the pnpm workspace (`apps/*`), the pinned `packageManager`, Node 24 (`.nvmrc`), a strict shared `tsconfig.base.json`, Prettier, `.editorconfig`, a root `.env.example` and root workspace scripts.
 - **Task 4: local PostgreSQL.** Docker Compose runs Postgres 17 with an `app_owner` role for migrations and an `app_user` role (`NOBYPASSRLS`, data access only) for the app. `pnpm db:verify` checks the role setup.
-- **Task 9: Next.js frontend shell.** Tailwind, a zod-validated `API_BASE_URL` and an API status check, tested with Vitest.
+- **Task 9: Next.js frontend shell.** Tailwind, a zod-validated `API_BASE_URL` and an API status check at `/status`, tested with Vitest.
 - **Git workflow:** one `feature/<name>` branch per task from `develop`, linear history on `main` and `develop`, and `.gitignore` hardened against secrets and build artefacts.
 
 ### Next (Phase 1)

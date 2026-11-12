@@ -21,4 +21,9 @@ describe('Landing page', () => {
     expect(ctas.length).toBeGreaterThanOrEqual(3);
     for (const link of ctas) expect(link).toHaveAttribute('href', '/login');
   });
+
+  it('does not show a copyright year that would freeze at build time', () => {
+    render(<LandingPage />);
+    expect(screen.getByRole('contentinfo')).toHaveTextContent(/^© Collections Intelligence$/);
+  });
 });

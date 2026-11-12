@@ -51,7 +51,13 @@ export function DataTable<T>({
     return <ErrorState title={error} onRetry={onRetry} />;
   }
   if (rows.length === 0) {
-    return <EmptyState title={emptyTitle} description={emptyDescription} />;
+    // Keep pagination when other pages have rows, so the user is never stranded.
+    return (
+      <div>
+        <EmptyState title={emptyTitle} description={emptyDescription} />
+        {pagination && pagination.total > 0 && <Pagination {...pagination} />}
+      </div>
+    );
   }
 
   return (

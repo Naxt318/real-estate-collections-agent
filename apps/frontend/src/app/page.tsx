@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { Logo } from '@/components/brand/logo';
+import { TEXT_LINK_CLASSES } from '@/components/auth/auth-link';
+import { buttonClasses } from '@/components/ui/button';
 
 const STEPS = [
   {
@@ -39,17 +41,8 @@ function CtaLink({
   variant: 'primary' | 'secondary' | 'inverted';
   children: string;
 }) {
-  const styles = {
-    primary: 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-500',
-    secondary:
-      'border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800',
-    inverted: 'bg-white text-indigo-900 hover:bg-indigo-50',
-  }[variant];
   return (
-    <Link
-      href="/login"
-      className={`inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${styles}`}
-    >
+    <Link href="/login" className={buttonClasses(variant, 'lg')}>
       {children}
     </Link>
   );
@@ -74,10 +67,7 @@ export default function LandingPage() {
             >
               Features
             </a>
-            <Link
-              href="/login"
-              className="px-2 text-sm font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
-            >
+            <Link href="/login" className={`px-2 ${TEXT_LINK_CLASSES}`}>
               Sign in
             </Link>
             <CtaLink variant="primary">Get started</CtaLink>
@@ -178,7 +168,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-zinc-200 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        © {new Date().getFullYear()} Collections Intelligence
+        © Collections Intelligence
       </footer>
     </div>
   );

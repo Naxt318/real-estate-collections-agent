@@ -55,4 +55,26 @@ describe('TextField', () => {
     render(<TextField label="Email" name="email" required />);
     expect(screen.getByLabelText(/Email/)).toBeRequired();
   });
+
+  it('keeps the error in the description when the caller adds its own', () => {
+    render(
+      <>
+        <p id="extra-help">Use your work email</p>
+        <TextField
+          label="Email"
+          name="email"
+          error="Enter a valid email address"
+          aria-describedby="extra-help"
+        />
+      </>,
+    );
+    expect(screen.getByLabelText('Email')).toHaveAccessibleDescription(
+      'Use your work email Enter a valid email address',
+    );
+  });
+
+  it('stays invalid when the caller passes aria-invalid={false} with an error', () => {
+    render(<TextField label="Email" name="email" error="Required" aria-invalid={false} />);
+    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true');
+  });
 });
