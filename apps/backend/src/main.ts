@@ -1,7 +1,5 @@
 import { createApp } from './bootstrap.js';
-
-// Port is hard-coded until environment validation lands (plan Task 3).
-const PORT = 3001;
+import { AppConfigService } from './config/app-config.service.js';
 
 const app = await createApp();
-await app.listen(PORT);
+await app.listen(app.get(AppConfigService).get('PORT'));

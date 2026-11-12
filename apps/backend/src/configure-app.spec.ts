@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import { IsString } from 'class-validator';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
-import { configureApp } from './bootstrap.js';
+import { configureApp } from './configure-app.js';
 
 class EchoDto {
   @IsString()
