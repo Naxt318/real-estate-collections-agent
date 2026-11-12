@@ -1,2 +1,9 @@
 packages:
   - 'apps/*'
+
+# pnpm blocks dependency install scripts unless listed here.
+# Prisma's postinstall fetches its schema engine; esbuild (via tsx) checks its binary.
+allowBuilds:
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
