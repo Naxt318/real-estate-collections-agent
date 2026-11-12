@@ -84,4 +84,14 @@ describe('DataTable', () => {
     });
     expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
   });
+
+  it('keeps pagination on an empty page when other pages have rows', () => {
+    renderTable({
+      rows: [],
+      emptyTitle: 'No customers yet',
+      pagination: { page: 3, pageSize: 5, total: 8, onPageChange: () => {} },
+    });
+    expect(screen.getByText('No customers yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeEnabled();
+  });
 });

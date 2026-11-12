@@ -7,7 +7,7 @@ import { GoogleIcon, MailIcon } from '@/components/ui/icons';
 import { PasswordField } from '@/components/ui/password-field';
 import { TextField } from '@/components/ui/text-field';
 import { validateLogin, type FieldErrors } from '@/lib/auth-validation';
-import { AuthLink } from './auth-link';
+import { AuthLink, TEXT_LINK_CLASSES } from './auth-link';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
@@ -84,11 +84,7 @@ export function LoginForm() {
 
       <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
         New here?{' '}
-        <button
-          type="button"
-          onClick={handleCreateAccount}
-          className="font-medium text-indigo-600 hover:text-indigo-500 focus-visible:outline-2 focus-visible:outline-indigo-600 dark:text-indigo-400"
-        >
+        <button type="button" onClick={handleCreateAccount} className={TEXT_LINK_CLASSES}>
           Create an account
         </button>
       </p>

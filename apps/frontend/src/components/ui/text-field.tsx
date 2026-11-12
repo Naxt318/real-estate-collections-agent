@@ -21,12 +21,18 @@ export function TextField({
   trailing,
   required,
   className = '',
+  'aria-describedby': callerDescribedBy,
+  'aria-invalid': callerInvalid,
   ...rest
 }: TextFieldProps) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
-  const describedBy = [hint && hintId, error && errorId].filter(Boolean).join(' ') || undefined;
+  // Merge with the caller's own description, and never let a caller mark a
+  // field with an error as valid.
+  const describedBy =
+    [callerDescribedBy, hint && hintId, error && errorId].filter(Boolean).join(' ') || undefined;
+  const invalid = Boolean(error) || callerInvalid === true || callerInvalid === 'true';
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
@@ -46,12 +52,12 @@ export function TextField({
           </span>
         )}
         <input
+          {...rest}
           id={id}
           required={required}
-          aria-invalid={Boolean(error)}
+          aria-invalid={invalid}
           aria-describedby={describedBy}
           className={`w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-xs placeholder:text-zinc-400 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-indigo-600 aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${icon ? 'pl-9' : ''} ${trailing ? 'pr-10' : ''}`}
-          {...rest}
         />
         {trailing && (
           <span className="absolute inset-y-0 right-1.5 flex items-center">{trailing}</span>

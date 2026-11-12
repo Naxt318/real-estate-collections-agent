@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { StatTile } from '@/components/ui/stat-tile';
 import { StatusBadge, type BadgeTone } from '@/components/ui/status-badge';
 import { TextField } from '@/components/ui/text-field';
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth-validation';
 import { formatInr } from '@/lib/format-money';
 
 // DEMO DATA ONLY. Invented for this preview; not real customers or amounts.
@@ -53,7 +54,7 @@ const columns: Column<DemoCustomer>[] = [
 
 const NAV_ITEMS = [
   { href: '/dev/components', label: 'Component gallery' },
-  { href: '/', label: 'API status' },
+  { href: '/status', label: 'API status' },
 ];
 
 export function ComponentGallery() {
@@ -111,7 +112,7 @@ export function ComponentGallery() {
               label="Password"
               name="demo-password"
               type="password"
-              hint="At least 12 characters"
+              hint={`At least ${MIN_PASSWORD_LENGTH} characters`}
             />
             <TextField label="Required field" name="demo-required" required />
             <TextField label="With error" name="demo-error" error="Enter a valid email address" />

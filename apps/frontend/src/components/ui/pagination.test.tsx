@@ -39,4 +39,18 @@ describe('Pagination', () => {
     render(<Pagination page={1} pageSize={10} total={45} onPageChange={() => {}} />);
     expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeInTheDocument();
   });
+
+  it('does not show a reversed range when the page is past the end', () => {
+    render(<Pagination page={3} pageSize={5} total={7} onPageChange={() => {}} />);
+    expect(screen.queryByText(/Showing 11/)).not.toBeInTheDocument();
+    expect(screen.getByText('Nothing on page 3 of 2')).toBeInTheDocument();
+  });
+
+  it('sends Previous to the last page when the page is past the end', async () => {
+    const onPageChange = vi.fn();
+    render(<Pagination page={5} pageSize={5} total={7} onPageChange={onPageChange} />);
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Previous page' }));
+    expect(onPageChange).toHaveBeenCalledWith(2);
+  });
 });

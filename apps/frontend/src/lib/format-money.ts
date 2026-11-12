@@ -11,17 +11,25 @@ function groupIndian(digits: string): string {
   return `${rest},${lastThree}`;
 }
 
+/** Shown in place of an amount that can't be formatted. */
+export const INVALID_AMOUNT = '—';
+
 /**
  * Formats a decimal string as Indian rupees, e.g. "1250000.5" → "₹12,50,000.50".
- * Throws on anything that is not a plain decimal with at most two places.
+ *
+ * Anything that is not a plain decimal with at most two places is shown as "—"
+ * and logged, so one bad value never takes down a whole page. It is never
+ * rounded or guessed at.
  */
 export function formatInr(amount: string): string {
   const match = AMOUNT_PATTERN.exec(amount);
   if (!match) {
-    throw new Error(`Invalid amount: ${JSON.stringify(amount)}`);
+    console.warn(`formatInr: Invalid amount ${JSON.stringify(amount)}`);
+    return INVALID_AMOUNT;
   }
   const [, sign = '', whole = '0', fraction = ''] = match;
   const rupees = groupIndian(whole.replace(/^0+(?=\d)/, ''));
   const paise = fraction.padEnd(2, '0');
-  return `${sign}₹${rupees}.${paise}`;
+  const isZero = /^0+$/.test(whole) && /^0*$/.test(fraction);
+  return `${isZero ? '' : sign}₹${rupees}.${paise}`;
 }

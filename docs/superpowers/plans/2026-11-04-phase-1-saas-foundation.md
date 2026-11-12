@@ -228,12 +228,12 @@ CREATE POLICY tenant_isolation ON "users"
 - Produces:
   - `env = z.object({ API_BASE_URL: z.url() }).parse(process.env)` in `src/env.ts`. It is server-only (not `NEXT_PUBLIC_`): the browser never calls the API in Phase 1. *(My call: the spec said `NEXT_PUBLIC_API_BASE_URL`, but the status fetch runs server-side, so nothing needs to reach the browser.)*
   - `getApiStatus(): Promise<'ok' | 'unavailable'>`: fetches `${env.API_BASE_URL}/api/v1/health/ready` with `cache: 'no-store'` and `signal: AbortSignal.timeout(2000)`. `'ok'` iff `res.ok`; any throw → `'unavailable'`.
-  - `page.tsx`: `export const dynamic = 'force-dynamic'`. Renders the heading "Collections Intelligence" and "API status: ok|unavailable".
+  - `page.tsx`: `export const dynamic = 'force-dynamic'`. Renders the heading "Collections Intelligence" and "API status: ok|unavailable". *(Moved to `src/app/status/page.tsx` when `/` became the landing page; the route is now `/status`.)*
   - Frontend scripts: `dev` (`next dev -p 3000`), `build`, `start`, `lint` (`eslint .`), `typecheck` (`tsc --noEmit`). No `test` script (spec: frontend test runner comes in 1b).
 
 - [ ] **Step 1:** Scaffold, pin exact versions (next 16.4.5, react/react-dom 19.3.1, tailwindcss 4.3.4, typescript 5.9.3, zod 4.6.7), extend the root tsconfig, remove the scaffold's prettier config, `.env.example` = `API_BASE_URL=http://localhost:3001`.
 - [ ] **Step 2:** Implement `env.ts`, `api-status.ts`, page and layout. Strip the scaffold demo content.
-- [ ] **Step 3:** Verify: `pnpm --filter frontend lint`, `typecheck`, and `API_BASE_URL=http://localhost:3001 pnpm --filter frontend build` exit 0. `API_BASE_URL=nope pnpm --filter frontend build` exits non-zero naming `API_BASE_URL`. With `pnpm dev` running, `curl -s localhost:3000 | grep 'API status: ok'` matches; stop the backend and it shows `unavailable`.
+- [ ] **Step 3:** Verify: `pnpm --filter frontend lint`, `typecheck`, and `API_BASE_URL=http://localhost:3001 pnpm --filter frontend build` exit 0. `API_BASE_URL=nope pnpm --filter frontend build` exits non-zero naming `API_BASE_URL`. With `pnpm dev` running, `curl -s localhost:3000/status | grep 'API status: ok'` matches; stop the backend and it shows `unavailable`.
 - [ ] **Step 4:** Commit `feat(frontend): scaffold Next.js dashboard shell with validated env`.
 
 ### Task 10: Backend Dockerfile

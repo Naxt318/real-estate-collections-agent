@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatInr } from './format-money';
 
 describe('formatInr', () => {
@@ -34,10 +34,23 @@ describe('formatInr', () => {
     expect(formatInr('0001000')).toBe('₹1,000.00');
   });
 
-  it.each(['', 'abc', '1,000', '12.345', '1e5', ' 100', '.5', '5.', '--1'])(
-    'rejects %j instead of guessing',
-    (input) => {
-      expect(() => formatInr(input)).toThrow(/Invalid amount/);
-    },
-  );
+  it('drops the sign of negative zero', () => {
+    expect(formatInr('-0')).toBe('₹0.00');
+    expect(formatInr('-0.00')).toBe('₹0.00');
+  });
+
+  describe('with a value it cannot format', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it.each(['', 'abc', '1,000', '1250.125', '1e+21', ' 100', '.5', '5.', '--1'])(
+      'shows a dash for %j instead of throwing or guessing',
+      (input) => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        expect(formatInr(input)).toBe('—');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Invalid amount'));
+      },
+    );
+  });
 });

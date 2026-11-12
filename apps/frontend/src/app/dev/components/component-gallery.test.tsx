@@ -23,4 +23,9 @@ describe('ComponentGallery', () => {
     render(<ComponentGallery />);
     expect(screen.getAllByText(/^₹[\d,]+\.\d{2}$/).length).toBeGreaterThan(0);
   });
+
+  it('links API status to the status page', () => {
+    render(<ComponentGallery />);
+    expect(screen.getByRole('link', { name: 'API status' })).toHaveAttribute('href', '/status');
+  });
 });
