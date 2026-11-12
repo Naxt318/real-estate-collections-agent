@@ -50,18 +50,18 @@ The full product and engineering spec is in [`CLAUDE.md`](CLAUDE.md).
 - **Phase 1 design** ([`docs/superpowers/specs/2026-11-04-phase-1-saas-foundation-design.md`](docs/superpowers/specs/2026-11-04-phase-1-saas-foundation-design.md)): folder structure, the two-role RLS design (`app_owner` / `app_user` with `NOBYPASSRLS`), tenant context through `AsyncLocalStorage`, a swappable tenant resolver, transaction-local `app.tenant_id`, the testing strategy and open risks.
 - **Phase 1 implementation plan** ([`docs/superpowers/plans/2026-11-04-phase-1-saas-foundation.md`](docs/superpowers/plans/2026-11-04-phase-1-saas-foundation.md)): 13 tasks, each with acceptance criteria and exact pinned versions.
 - **Task 1: monorepo skeleton.** This covers the pnpm workspace (`apps/*`), the pinned `packageManager`, Node 24 (`.nvmrc`), a strict shared `tsconfig.base.json`, Prettier, `.editorconfig`, a root `.env.example` and root workspace scripts.
-- **Git workflow:** `main` → `develop` → `feature/saas-foundation`, and `.gitignore` hardened against secrets and build artefacts.
+- **Task 4: local PostgreSQL.** Docker Compose runs Postgres 17 with an `app_owner` role for migrations and an `app_user` role (`NOBYPASSRLS`, data access only) for the app. `pnpm db:verify` checks the role setup.
+- **Task 9: Next.js frontend shell.** Tailwind, a zod-validated `API_BASE_URL` and an API status check, tested with Vitest.
+- **Git workflow:** one `feature/<name>` branch per task from `develop`, linear history on `main` and `develop`, and `.gitignore` hardened against secrets and build artefacts.
 
 ### Next (Phase 1)
 
 - [ ] NestJS backend scaffold (`/api/v1` prefix, validation, shutdown hooks)
 - [ ] Environment validation with zod
-- [ ] Local PostgreSQL through Docker Compose, with separate owner and app roles
 - [ ] Prisma schema (`Tenant`, `User`), migrations and RLS policies
 - [ ] Tenancy plumbing (context, resolver, guard, tenant-scoped transactions) and cross-tenant isolation tests
 - [ ] Health endpoints (`/api/v1/health/live`, `/ready`)
 - [ ] Global exception filter
-- [ ] Next.js frontend scaffold
 - [ ] Backend Dockerfile for Cloud Run
 - [ ] Full setup and run docs
 
@@ -87,6 +87,10 @@ The full product and engineering spec is in [`CLAUDE.md`](CLAUDE.md).
 ├── docs/superpowers/
 │   ├── specs/                # design documents
 │   └── plans/                # implementation plans
+├── apps/frontend/            # Next.js dashboard shell
+├── docker-compose.yml        # local Postgres 17
+├── docker/postgres/init/     # creates app_user and the test database
+├── scripts/verify-db.sh      # pnpm db:verify
 ├── package.json              # root workspace scripts
 ├── pnpm-workspace.yaml       # apps/* (backend and frontend land here)
 ├── tsconfig.base.json        # shared strict TypeScript settings
