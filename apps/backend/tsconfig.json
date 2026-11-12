@@ -5,7 +5,6 @@
     "moduleResolution": "nodenext",
     "resolvePackageJsonExports": true,
     "isolatedModules": true,
-    "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
