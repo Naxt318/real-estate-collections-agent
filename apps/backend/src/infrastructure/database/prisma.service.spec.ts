@@ -10,8 +10,9 @@ async function compileWithUnreachableDatabase() {
   const { PrismaService } = await import('./prisma.service.js');
   const { AppConfigModule } = await import('../../config/config.module.js');
   const { DatabaseModule } = await import('./database.module.js');
+  const { TenancyModule } = await import('../../common/tenancy/tenancy.module.js');
   const moduleRef = await Test.createTestingModule({
-    imports: [AppConfigModule, DatabaseModule],
+    imports: [AppConfigModule, TenancyModule, DatabaseModule],
   }).compile();
   return { moduleRef, prisma: moduleRef.get(PrismaService) };
 }
