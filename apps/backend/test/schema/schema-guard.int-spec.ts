@@ -13,6 +13,11 @@ export const TENANT_TABLES: readonly string[] = [
   'booking_applicants',
   'demands',
   'payments',
+  'integration_connections',
+  'sync_runs',
+  'collection_policies',
+  'cadence_steps',
+  'approved_talking_points',
 ];
 
 describe('schema coverage guard', () => {
