@@ -95,20 +95,55 @@ describe('buildDemoDataset', () => {
     expect(events.every((e) => e.reason === 'promise broken')).toBe(true);
   });
 
-  it('has Suresh, hostile with contact risk above the skip threshold', () => {
-    expect(
-      a.callAttempts.some((c) => c.personId === personId('Suresh') && c.hostility === 'ABUSIVE'),
-    ).toBe(true);
-    const score = a.riskScores.find(
-      (r) => r.personId === personId('Suresh') && r.kind === 'CONTACT',
-    )!;
-    expect(score.value).toBe(80);
-    expect(score.value).toBeGreaterThan(70);
-    expect(
-      a.scoreEvents.some(
-        (e) => e.personId === personId('Suresh') && e.kind === 'CONTACT' && e.valueAfter === 80,
-      ),
-    ).toBe(true);
+  it('has Suresh, hostile, escalated for contact risk above the skip threshold', () => {
+    const suresh = personId('Suresh');
+    const calls = a.callAttempts.filter((c) => c.personId === suresh);
+    expect(calls.map((c) => c.hostility)).toEqual(expect.arrayContaining(['ABUSIVE', 'HIGH']));
+    expect(calls).toHaveLength(2);
+    const score = a.riskScores.find((r) => r.personId === suresh && r.kind === 'CONTACT')!;
+    expect(score).toMatchObject({ value: 80, band: 'HIGH' });
+
+    // Spec rules: start at 20; HIGH hostility +20; ABUSIVE +40. Each event follows the last.
+    const ruleDelta = { HIGH: 20, ABUSIVE: 40 } as const;
+    const events = a.scoreEvents
+      .filter((e) => e.personId === suresh && e.kind === 'CONTACT')
+      .sort((x, y) => new Date(x.createdAt!).getTime() - new Date(y.createdAt!).getTime());
+    expect(events).toHaveLength(2);
+    let value = 20;
+    for (const e of events) {
+      const call = calls.find((c) => c.id === e.callAttemptId)!;
+      expect(e.delta).toBe(ruleDelta[call.hostility as 'HIGH' | 'ABUSIVE']);
+      value += e.delta;
+      expect(e.valueAfter).toBe(value);
+    }
+    expect(value).toBe(80);
+
+    expect(a.collectionCases.find((c) => c.personId === suresh)).toMatchObject({
+      status: 'ESCALATED',
+      handledBy: 'HUMAN',
+    });
+    expect(a.escalations.filter((e) => e.personId === suresh)).toMatchObject([
+      { reason: 'HIGH_CONTACT_RISK', status: 'OPEN', callAttemptId: events.at(-1)!.callAttemptId },
+    ]);
+  });
+
+  it('dates cases, calls, promises and escalations by their scenario, not by now', () => {
+    const time = (d: unknown) => new Date(d as Date).getTime();
+    for (const c of a.collectionCases) {
+      expect(c.createdAt, 'case createdAt').toBeInstanceOf(Date);
+      expect(time(c.createdAt)).toBeLessThan(asOf.getTime());
+      for (const call of a.callAttempts.filter((x) => x.caseId === c.id))
+        expect(time(call.startedAt)).toBeGreaterThanOrEqual(time(c.createdAt));
+    }
+    for (const call of a.callAttempts) expect(call.createdAt).toEqual(call.startedAt);
+    for (const p of a.paymentPromises) {
+      const call = a.callAttempts.find((x) => x.id === p.callAttemptId)!;
+      expect(p.createdAt).toEqual(call.startedAt);
+    }
+    for (const e of a.escalations) {
+      const call = a.callAttempts.find((x) => x.id === e.callAttemptId)!;
+      expect(e.createdAt).toEqual(call.endedAt);
+    }
   });
 
   it('has Meera, an open dispute escalated to a human', () => {

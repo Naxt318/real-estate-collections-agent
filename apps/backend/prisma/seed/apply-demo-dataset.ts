@@ -51,6 +51,7 @@ export async function applyDemoDataset(owner: PrismaClient, ds: DemoDataset): Pr
     await owner.escalation.upsert({ where: { id: r.id }, update: r, create: r });
   for (const r of ds.riskScores)
     await owner.riskScore.upsert({ where: { id: r.id }, update: r, create: r });
+  // score_events is append-only: an existing event is never rewritten.
   for (const r of ds.scoreEvents)
-    await owner.scoreEvent.upsert({ where: { id: r.id }, update: r, create: r });
+    await owner.scoreEvent.upsert({ where: { id: r.id }, update: {}, create: r });
 }
