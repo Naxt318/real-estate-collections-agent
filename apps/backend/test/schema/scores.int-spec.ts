@@ -101,6 +101,14 @@ describe('risk scores, score events, audit log and outbox', () => {
     await expect(
       runner.runAs(ids.a, (tx) => tx.auditLog.delete({ where: { id: audit.id } })),
     ).rejects.toThrow(/permission denied/);
+    await expect(
+      runner.runAs(ids.a, (tx) => tx.scoreEvent.delete({ where: { id: event.id } })),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      runner.runAs(ids.a, (tx) =>
+        tx.auditLog.update({ where: { id: audit.id }, data: { action: 'EDITED' } }),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it('app user can mark outbox processed', async () => {

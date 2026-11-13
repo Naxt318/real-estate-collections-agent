@@ -71,6 +71,34 @@ describe('bookings mirror: persons, bookings, booking_applicants', () => {
     await expect(owner.person.create({ data: person(ids.a, 'C-2') })).resolves.toBeTruthy();
   });
 
+  it('alternate phone must be E.164', async () => {
+    await expect(
+      owner.person.create({ data: { ...person(ids.a, 'C-1'), altPhone: '98765' } }),
+    ).rejects.toMatchObject({ meta: { driverAdapterError: { cause: { code: '23514' } } } });
+  });
+
+  it.each([
+    ['a negative agreement value', { agreementValue: '-1.00' }],
+    ['a negative interest rate', { latePaymentInterestRatePa: '-0.01' }],
+    ['an interest rate above 100', { latePaymentInterestRatePa: '100.01' }],
+  ])('booking rejects %s', async (_name, overrides) => {
+    const p1 = await owner.person.create({ data: person(ids.a, 'C-1') });
+    const u1 = await unit(ids.a, 'U-1');
+    await expect(
+      owner.booking.create({ data: { ...booking(ids.a, u1.id, p1.id, 'B-1'), ...overrides } }),
+    ).rejects.toMatchObject({ meta: { driverAdapterError: { cause: { code: '23514' } } } });
+  });
+
+  it.each([null, '0.00', '18.00', '100.00'])('booking accepts interest rate %s', async (rate) => {
+    const p1 = await owner.person.create({ data: person(ids.a, 'C-1') });
+    const u1 = await unit(ids.a, 'U-1');
+    await expect(
+      owner.booking.create({
+        data: { ...booking(ids.a, u1.id, p1.id, 'B-1'), latePaymentInterestRatePa: rate },
+      }),
+    ).resolves.toBeTruthy();
+  });
+
   it('a person can hold two bookings and a booking can have two applicants', async () => {
     const p1 = await owner.person.create({ data: person(ids.a, 'C-1') });
     const p2 = await owner.person.create({ data: person(ids.a, 'C-2', '+919876543211') });
