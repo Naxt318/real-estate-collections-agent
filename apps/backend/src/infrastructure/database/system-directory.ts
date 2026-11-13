@@ -1,5 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { CrmSource, IntegrationStatus, PrismaClient } from '../../generated/prisma/client.js';
+import type {
+  CrmSource,
+  IntegrationStatus,
+  PrismaClient,
+  TenantStatus,
+} from '../../generated/prisma/client.js';
 import { PrismaService } from './prisma.service.js';
 
 export interface ResolvedIntegrationConnection {
@@ -7,6 +12,8 @@ export interface ResolvedIntegrationConnection {
   source: CrmSource;
   secretRef: string;
   status: IntegrationStatus;
+  // Callers must refuse work for a SUSPENDED tenant.
+  tenantStatus: TenantStatus;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,7 +35,13 @@ export class SystemDirectory {
   ): Promise<ResolvedIntegrationConnection | null> {
     if (!UUID.test(connectionId)) return null;
     const rows = await this.prisma.$queryRaw<
-      { tenant_id: string; source: CrmSource; secret_ref: string; status: IntegrationStatus }[]
+      {
+        tenant_id: string;
+        source: CrmSource;
+        secret_ref: string;
+        status: IntegrationStatus;
+        tenant_status: TenantStatus;
+      }[]
     >`SELECT * FROM app_resolve_integration_connection(${connectionId}::uuid)`;
     const row = rows[0];
     if (!row) return null;
@@ -37,6 +50,7 @@ export class SystemDirectory {
       source: row.source,
       secretRef: row.secret_ref,
       status: row.status,
+      tenantStatus: row.tenant_status,
     };
   }
 }
