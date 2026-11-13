@@ -2,7 +2,16 @@ import type { PrismaClient } from '../../src/generated/prisma/client.js';
 import { ownerClient, resetDb } from '../support/db.js';
 
 // Every tenant-owned table. Each later task appends its tables here.
-export const TENANT_TABLES: readonly string[] = ['tenants', 'users', 'projects', 'towers', 'units'];
+export const TENANT_TABLES: readonly string[] = [
+  'tenants',
+  'users',
+  'projects',
+  'towers',
+  'units',
+  'persons',
+  'bookings',
+  'booking_applicants',
+];
 
 describe('schema coverage guard', () => {
   let owner: PrismaClient;
