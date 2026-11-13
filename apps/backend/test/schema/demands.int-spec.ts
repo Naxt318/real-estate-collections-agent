@@ -52,9 +52,9 @@ describe('money mirror: demands, payments', () => {
     expect(sum._sum.amount?.toString()).toBe('0.3');
   });
 
-  it('more than two decimals is not stored silently', async () => {
-    // Postgres rounds numeric(14,2) on insert, so the sync must expect rounding to happen in the
-    // database: 1.005 is stored as 1.01, not rejected.
+  it('more than two decimals is rounded by Postgres to 2 places', async () => {
+    // Postgres rounds numeric(14,2) on insert without error: 1.005 is stored as 1.01. The database
+    // will not reject it, so the CRM sync must reject amounts with more than 2 decimals before writing.
     const g = await createBookingGraph(owner, ids.a, { amountDue: '1.005' });
     const demand = await owner.demand.findUniqueOrThrow({ where: { id: g.demandId } });
     expect(demand.amountDue.toString()).toBe('1.01');
