@@ -11,6 +11,8 @@ export const TENANT_TABLES: readonly string[] = [
   'persons',
   'bookings',
   'booking_applicants',
+  'demands',
+  'payments',
 ];
 
 describe('schema coverage guard', () => {

@@ -47,6 +47,19 @@ enum ApplicantRole {
   CO_APPLICANT
 }
 
+enum DemandStatus {
+  RAISED
+  PARTIALLY_PAID
+  PAID
+  WITHDRAWN
+}
+
+enum PayerType {
+  BUYER
+  BANK
+  OTHER
+}
+
 enum CommunicationChannel {
   EMAIL
   SMS
@@ -65,6 +78,8 @@ model Tenant {
   persons           Person[]
   bookings          Booking[]
   bookingApplicants BookingApplicant[]
+  demands           Demand[]
+  payments          Payment[]
 
   @@map("tenants")
 }
@@ -210,6 +225,8 @@ model Booking {
   createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                 DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
   applicants                BookingApplicant[]
+  demands                   Demand[]
+  payments                  Payment[]
 
   @@unique([tenantId, source, externalId])
   @@unique([tenantId, id])
@@ -236,4 +253,66 @@ model BookingApplicant {
   @@unique([bookingId, personId])
   @@index([tenantId, personId])
   @@map("booking_applicants")
+}
+
+// One row per demand letter the CRM raised. The stage is free text because builders name stages
+// differently. Amounts are enforced non-negative, and the bank share bounded, by CHECKs in the migration.
+model Demand {
+  id                 String       @id @default(uuid()) @db.Uuid
+  tenantId           String       @map("tenant_id") @db.Uuid
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source             CrmSource
+  externalId         String       @map("external_id")
+  lastSyncedAt       DateTime     @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload         Json?        @map("raw_payload")
+  bookingId          String       @map("booking_id") @db.Uuid
+  booking            Booking      @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+  stageName          String       @map("stage_name")
+  stageSequence      Int          @map("stage_sequence")
+  demandDate         DateTime     @map("demand_date") @db.Date
+  dueDate            DateTime     @map("due_date") @db.Date
+  amountDue          Decimal      @map("amount_due") @db.Decimal(14, 2)
+  // The lender's tranche when the CRM records the split.
+  expectedBankAmount Decimal?     @map("expected_bank_amount") @db.Decimal(14, 2)
+  // The CRM's own outstanding figure, when it reports one.
+  crmOutstanding     Decimal?     @map("crm_outstanding") @db.Decimal(14, 2)
+  status             DemandStatus
+  currency           String       @default("INR") @db.Char(3)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  payments           Payment[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@index([tenantId, bookingId])
+  @@index([tenantId, status, dueDate])
+  @@map("demands")
+}
+
+// A receipt the CRM recorded. demandId is null when the CRM does not allocate it to a demand.
+model Payment {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source       CrmSource
+  externalId   String    @map("external_id")
+  lastSyncedAt DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload   Json?     @map("raw_payload")
+  bookingId    String    @map("booking_id") @db.Uuid
+  booking      Booking   @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+  demandId     String?   @map("demand_id") @db.Uuid
+  demand       Demand?   @relation(fields: [tenantId, demandId], references: [tenantId, id], onDelete: Restrict)
+  // Positive, enforced by a CHECK constraint in the migration.
+  amount       Decimal   @db.Decimal(14, 2)
+  currency     String    @default("INR") @db.Char(3)
+  paidAt       DateTime  @map("paid_at") @db.Timestamptz(3)
+  payerType    PayerType @map("payer_type")
+  reference    String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId, demandId])
+  @@index([tenantId, bookingId])
+  @@map("payments")
 }
