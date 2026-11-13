@@ -22,13 +22,22 @@ enum UserRole {
   AGENT
 }
 
+// Which CRM a mirrored row came from. Grows with adapters.
+enum CrmSource {
+  DEMO
+  SALESFORCE
+}
+
 model Tenant {
   id        String       @id @default(uuid()) @db.Uuid
   name      String
   status    TenantStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @db.Timestamptz(3) @map("created_at")
-  updatedAt DateTime     @updatedAt @db.Timestamptz(3) @map("updated_at")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   users     User[]
+  projects  Project[]
+  towers    Tower[]
+  units     Unit[]
 
   @@map("tenants")
 }
@@ -40,10 +49,81 @@ model User {
   email     String
   name      String?
   role      UserRole @default(AGENT)
-  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
-  updatedAt DateTime @updatedAt @db.Timestamptz(3) @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
+}
+
+// Mirrored from the CRM: the sync job is the only writer.
+model Project {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source             CrmSource
+  externalId         String    @map("external_id")
+  lastSyncedAt       DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload         Json?     @map("raw_payload")
+  name               String
+  city               String?
+  // Interest rules are state-specific.
+  state              String?
+  reraRegistrationNo String?   @map("rera_registration_no")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  towers             Tower[]
+  units              Unit[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@map("projects")
+}
+
+model Tower {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source       CrmSource
+  externalId   String    @map("external_id")
+  lastSyncedAt DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload   Json?     @map("raw_payload")
+  projectId    String    @map("project_id") @db.Uuid
+  project      Project   @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict)
+  name         String
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  units        Unit[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@index([tenantId, projectId])
+  @@map("towers")
+}
+
+model Unit {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source         CrmSource
+  externalId     String    @map("external_id")
+  lastSyncedAt   DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload     Json?     @map("raw_payload")
+  projectId      String    @map("project_id") @db.Uuid
+  project        Project   @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict)
+  // Optional grouping: a unit may sit directly under its project.
+  towerId        String?   @map("tower_id") @db.Uuid
+  tower          Tower?    @relation(fields: [tenantId, towerId], references: [tenantId, id], onDelete: Restrict)
+  unitNumber     String    @map("unit_number")
+  floor          Int?
+  carpetAreaSqft Decimal?  @map("carpet_area_sqft") @db.Decimal(10, 2)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@index([tenantId, projectId])
+  @@index([tenantId, towerId])
+  @@map("units")
 }
