@@ -48,6 +48,14 @@ describe('demo dataset seed', () => {
     expect(await counts()).toEqual(first);
   });
 
+  it('never rewrites score events, which are append-only', async () => {
+    await applyDemoDataset(owner, buildDemoDataset('A', new Date('2026-11-01T00:00:00.000Z')));
+    const before = await owner.scoreEvent.findMany({ orderBy: { id: 'asc' } });
+    expect(before.length).toBeGreaterThan(0);
+    await applyDemoDataset(owner, buildDemoDataset('A', new Date('2026-11-20T00:00:00.000Z')));
+    expect(await owner.scoreEvent.findMany({ orderBy: { id: 'asc' } })).toEqual(before);
+  });
+
   it('keeps builder B from seeing builder A buyers', async () => {
     await seedAll();
     const runner = new TenantTransactionRunner(app, new TenantContext());
