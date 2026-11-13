@@ -234,7 +234,8 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
     });
   };
 
-  // One open case per person, covering all of that person's due demands.
+  // One open case per person, covering all of that person's due demands. The case opened when its
+  // oldest demand fell due, so createdAt is that due date rather than the time the seed ran.
   const addCase = (
     personId: string,
     demandIds: string[],
@@ -242,9 +243,30 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
     handledBy: 'AI' | 'HUMAN' = 'AI',
   ) => {
     const caseId = id('case', personId);
-    ds.collectionCases.push({ id: caseId, tenantId, personId, status, handledBy });
+    const openedAt = new Date(
+      Math.min(
+        ...ds.demands
+          .filter((d) => demandIds.includes(d.id))
+          .map((d) => new Date(d.dueDate).getTime()),
+      ),
+    );
+    ds.collectionCases.push({
+      id: caseId,
+      tenantId,
+      personId,
+      status,
+      handledBy,
+      createdAt: openedAt,
+    });
     demandIds.forEach((demandId, i) =>
-      ds.caseDemands.push({ id: id('case-demand', caseId, String(i)), tenantId, caseId, demandId }),
+      ds.caseDemands.push({
+        id: id('case-demand', caseId, String(i)),
+        tenantId,
+        caseId,
+        demandId,
+        addedAt: openedAt,
+        createdAt: openedAt,
+      }),
     );
     return caseId;
   };
@@ -255,7 +277,7 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
     personId: string,
     ago: number,
     outcome: Prisma.CallAttemptUncheckedCreateInput['outcome'],
-    hostility: 'NONE' | 'ABUSIVE' = 'NONE',
+    hostility: 'NONE' | 'HIGH' | 'ABUSIVE' = 'NONE',
     summary?: string,
   ) => {
     const callId = id('call', ckey);
@@ -265,6 +287,7 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
       caseId,
       personId,
       startedAt: daysAgo(ago),
+      createdAt: daysAgo(ago),
       endedAt: new Date(daysAgo(ago).getTime() + 90_000),
       durationSec: 90,
       connected: true,
@@ -274,6 +297,9 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
     });
     return callId;
   };
+
+  const callStart = (callId: string) => ds.callAttempts.find((c) => c.id === callId)!.startedAt;
+  const callEnd = (callId: string) => ds.callAttempts.find((c) => c.id === callId)!.endedAt!;
 
   const setScore = (
     personId: string,
@@ -464,6 +490,45 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
         callAttemptId: callId,
         reason: 'DISPUTE',
         status: 'OPEN',
+        createdAt: callEnd(callId),
+      });
+      continue;
+    }
+    if (s.key === 'suresh') {
+      // Contact risk (spec rules): starts at 20, a HIGH-hostility call +20, an ABUSIVE call +40.
+      // At 80 it passes the policy's skip threshold of 70, so the case goes to a human.
+      const caseId = addCase(personId, [demandId], 'ESCALATED', 'HUMAN');
+      const tenseCall = addCall(
+        'suresh-1',
+        caseId,
+        personId,
+        12,
+        'DECLINED_TO_DISCUSS',
+        'HIGH',
+        'Caller was hostile and refused to discuss the instalment.',
+      );
+      const abusiveCall = addCall(
+        'suresh-2',
+        caseId,
+        personId,
+        5,
+        'ABUSIVE',
+        'ABUSIVE',
+        'Caller was abusive; call ended.',
+      );
+      setScore(personId, 'CONTACT', 80, 'HIGH', [
+        { delta: 20, valueAfter: 40, reason: 'high hostility', callAttemptId: tenseCall, ago: 12 },
+        { delta: 40, valueAfter: 80, reason: 'abusive call', callAttemptId: abusiveCall, ago: 5 },
+      ]);
+      ds.escalations.push({
+        id: id('escalation', 'suresh'),
+        tenantId,
+        caseId,
+        personId,
+        callAttemptId: abusiveCall,
+        reason: 'HIGH_CONTACT_RISK',
+        status: 'OPEN',
+        createdAt: callEnd(abusiveCall),
       });
       continue;
     }
@@ -488,6 +553,7 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
           caseId,
           personId,
           callAttemptId: callId,
+          createdAt: callStart(callId),
           proposedDate: daysAgo(promiseDays[i]! + 3),
           agreedDate: daysAgo(promiseDays[i]!),
           agreedAmount: SLAB_AMOUNT,
@@ -510,20 +576,6 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
           callAttemptId: calls[1]!,
           ago: promiseDays[1]! - 1,
         },
-      ]);
-    }
-    if (s.key === 'suresh') {
-      const callId = addCall(
-        'suresh-1',
-        caseId,
-        personId,
-        5,
-        'ABUSIVE',
-        'ABUSIVE',
-        'Caller was abusive; call ended.',
-      );
-      setScore(personId, 'CONTACT', 80, 'HIGH', [
-        { delta: 80, valueAfter: 80, reason: 'abusive call', callAttemptId: callId, ago: 5 },
       ]);
     }
   }
