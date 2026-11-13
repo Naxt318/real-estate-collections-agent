@@ -97,6 +97,10 @@ model Tenant {
   collectionPolicy       CollectionPolicy?
   cadenceSteps           CadenceStep[]
   approvedTalkingPoints  ApprovedTalkingPoint[]
+  collectionCases        CollectionCase[]
+  caseDemands            CaseDemand[]
+  scheduledCalls         ScheduledCall[]
+  callAttempts           CallAttempt[]
 
   @@map("tenants")
 }
@@ -211,6 +215,9 @@ model Person {
   updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
   primaryBookings   Booking[]
   applications      BookingApplicant[]
+  collectionCases   CollectionCase[]
+  scheduledCalls    ScheduledCall[]
+  callAttempts      CallAttempt[]
 
   @@unique([tenantId, source, externalId])
   @@unique([tenantId, id])
@@ -298,6 +305,7 @@ model Demand {
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   payments           Payment[]
+  caseDemands        CaseDemand[]
 
   @@unique([tenantId, source, externalId])
   @@unique([tenantId, id])
@@ -420,4 +428,141 @@ model ApprovedTalkingPoint {
 
   @@unique([tenantId, key])
   @@map("approved_talking_points")
+}
+
+enum CaseStatus {
+  OPEN
+  CALL_SCHEDULED
+  PROMISED
+  AWAITING_APPROVAL
+  NUDGED
+  PAID
+  ESCALATED
+  CLOSED_UNRESOLVED
+}
+
+enum CallOutcome {
+  PROMISED
+  PAYMENT_LINK_REQUESTED
+  CLAIMS_ALREADY_PAID
+  CALLBACK_REQUESTED
+  DISPUTE
+  HARDSHIP
+  WRONG_NUMBER
+  NO_ANSWER
+  BUSY
+  DECLINED_TO_DISCUSS
+  OPTED_OUT
+  ABUSIVE
+}
+
+enum HandledBy {
+  AI
+  HUMAN
+}
+
+enum ScheduledCallStatus {
+  PENDING
+  DISPATCHED
+  CANCELLED
+  SKIPPED
+}
+
+enum Hostility {
+  NONE
+  MILD
+  HIGH
+  ABUSIVE
+}
+
+// One open case per buyer: a partial unique index in the migration (where closed_at IS NULL)
+// enforces it, as Prisma cannot express a partial index.
+model CollectionCase {
+  id             String          @id @default(uuid()) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  personId       String          @map("person_id") @db.Uuid
+  person         Person          @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  status         CaseStatus      @default(OPEN)
+  handledBy      HandledBy       @default(AI) @map("handled_by")
+  attemptsCount  Int             @default(0) @map("attempts_count")
+  nextActionAt   DateTime?       @map("next_action_at") @db.Timestamptz(3)
+  closedAt       DateTime?       @map("closed_at") @db.Timestamptz(3)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  demands        CaseDemand[]
+  scheduledCalls ScheduledCall[]
+  callAttempts   CallAttempt[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@map("collection_cases")
+}
+
+// Which demands a case covers. A demand is active in at most one case: a partial unique index
+// in the migration (where removed_at IS NULL).
+model CaseDemand {
+  id        String         @id @default(uuid()) @db.Uuid
+  tenantId  String         @map("tenant_id") @db.Uuid
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId    String         @map("case_id") @db.Uuid
+  case      CollectionCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  demandId  String         @map("demand_id") @db.Uuid
+  demand    Demand         @relation(fields: [tenantId, demandId], references: [tenantId, id], onDelete: Restrict)
+  addedAt   DateTime       @default(now()) @map("added_at") @db.Timestamptz(3)
+  removedAt DateTime?      @map("removed_at") @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([tenantId, demandId])
+  @@map("case_demands")
+}
+
+// skipReason is free text (for example LOAN_SPLIT_UNKNOWN), not an enum.
+model ScheduledCall {
+  id           String              @id @default(uuid()) @db.Uuid
+  tenantId     String              @map("tenant_id") @db.Uuid
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId       String              @map("case_id") @db.Uuid
+  case         CollectionCase      @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId     String              @map("person_id") @db.Uuid
+  person       Person              @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  scheduledFor DateTime            @map("scheduled_for") @db.Timestamptz(3)
+  status       ScheduledCallStatus @default(PENDING)
+  skipReason   String?             @map("skip_reason")
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  callAttempts CallAttempt[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, scheduledFor])
+  @@map("scheduled_calls")
+}
+
+// The transcript lives in Cloud Storage, redacted; only its URI is stored here.
+model CallAttempt {
+  id              String         @id @default(uuid()) @db.Uuid
+  tenantId        String         @map("tenant_id") @db.Uuid
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  scheduledCallId String?        @map("scheduled_call_id") @db.Uuid
+  scheduledCall   ScheduledCall? @relation(fields: [tenantId, scheduledCallId], references: [tenantId, id], onDelete: Restrict)
+  caseId          String         @map("case_id") @db.Uuid
+  case            CollectionCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId        String         @map("person_id") @db.Uuid
+  person          Person         @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  providerCallId  String?        @map("provider_call_id")
+  startedAt       DateTime       @map("started_at") @db.Timestamptz(3)
+  endedAt         DateTime?      @map("ended_at") @db.Timestamptz(3)
+  durationSec     Int?           @map("duration_sec")
+  connected       Boolean
+  outcome         CallOutcome?
+  hostility       Hostility      @default(NONE)
+  summary         String?
+  transcriptUri   String?        @map("transcript_uri")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Task 8's score_events references a call attempt by this composite key.
+  @@unique([tenantId, id])
+  @@map("call_attempts")
 }
