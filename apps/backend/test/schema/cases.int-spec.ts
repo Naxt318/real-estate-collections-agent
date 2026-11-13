@@ -37,9 +37,35 @@ describe('collection cases and calls', () => {
       },
     });
 
-    await owner.collectionCase.update({ where: { id: first.id }, data: { closedAt: new Date() } });
+    await owner.collectionCase.update({
+      where: { id: first.id },
+      data: { status: 'CLOSED_UNRESOLVED', closedAt: new Date() },
+    });
     await owner.collectionCase.create({ data: { tenantId: ids.a, personId } });
   });
+
+  it.each([
+    ['a terminal status without closed_at', { status: 'PAID' as const }],
+    ['closed_at on an open case', { status: 'OPEN' as const, closedAt: new Date() }],
+    ['closed_at on an escalated case', { status: 'ESCALATED' as const, closedAt: new Date() }],
+  ])('closed_at must match a terminal status: rejects %s', async (_name, data) => {
+    const { personId } = await createBookingGraph(owner, ids.a);
+    await expect(
+      owner.collectionCase.create({ data: { tenantId: ids.a, personId, ...data } }),
+    ).rejects.toMatchObject({ meta: { driverAdapterError: { cause: { code: '23514' } } } });
+  });
+
+  it.each(['PAID', 'CLOSED_UNRESOLVED'] as const)(
+    'a %s case with closed_at is accepted',
+    async (status) => {
+      const { personId } = await createBookingGraph(owner, ids.a);
+      await expect(
+        owner.collectionCase.create({
+          data: { tenantId: ids.a, personId, status, closedAt: new Date() },
+        }),
+      ).resolves.toBeTruthy();
+    },
+  );
 
   it('a demand is active in at most one case', async () => {
     const g = await createBookingGraph(owner, ids.a);
