@@ -23,6 +23,18 @@ enum UserRole {
 }
 
 // Which CRM a mirrored row came from. Grows with adapters.
+enum IntegrationStatus {
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+enum SyncRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 enum CrmSource {
   DEMO
   SALESFORCE
@@ -66,20 +78,25 @@ enum CommunicationChannel {
 }
 
 model Tenant {
-  id                String             @id @default(uuid()) @db.Uuid
-  name              String
-  status            TenantStatus       @default(ACTIVE)
-  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
-  users             User[]
-  projects          Project[]
-  towers            Tower[]
-  units             Unit[]
-  persons           Person[]
-  bookings          Booking[]
-  bookingApplicants BookingApplicant[]
-  demands           Demand[]
-  payments          Payment[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  name                   String
+  status                 TenantStatus            @default(ACTIVE)
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  users                  User[]
+  projects               Project[]
+  towers                 Tower[]
+  units                  Unit[]
+  persons                Person[]
+  bookings               Booking[]
+  bookingApplicants      BookingApplicant[]
+  demands                Demand[]
+  payments               Payment[]
+  integrationConnections IntegrationConnection[]
+  syncRuns               SyncRun[]
+  collectionPolicy       CollectionPolicy?
+  cadenceSteps           CadenceStep[]
+  approvedTalkingPoints  ApprovedTalkingPoint[]
 
   @@map("tenants")
 }
@@ -315,4 +332,92 @@ model Payment {
   @@index([tenantId, demandId])
   @@index([tenantId, bookingId])
   @@map("payments")
+}
+
+// One CRM connection per source per tenant. Credentials live in Secret Manager; secretRef only points at them.
+model IntegrationConnection {
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source        CrmSource
+  status        IntegrationStatus @default(ACTIVE)
+  secretRef     String            @map("secret_ref")
+  config        Json              @default("{}")
+  lastSuccessAt DateTime?         @map("last_success_at") @db.Timestamptz(3)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  syncRuns      SyncRun[]
+
+  @@unique([tenantId, source])
+  @@unique([tenantId, id])
+  @@map("integration_connections")
+}
+
+// Append-only audit trail of CRM syncs, so no updatedAt.
+model SyncRun {
+  id           String                @id @default(uuid()) @db.Uuid
+  tenantId     String                @map("tenant_id") @db.Uuid
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  connectionId String                @map("connection_id") @db.Uuid
+  connection   IntegrationConnection @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  startedAt    DateTime              @map("started_at") @db.Timestamptz(3)
+  finishedAt   DateTime?             @map("finished_at") @db.Timestamptz(3)
+  status       SyncRunStatus         @default(RUNNING)
+  counts       Json                  @default("{}")
+  error        String?
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, connectionId, startedAt])
+  @@map("sync_runs")
+}
+
+// One row per tenant. The calling window defaults to 10:00-19:00 via dbgenerated, as Prisma has no
+// native default for a TIME column. Ranges are enforced by CHECKs in the migration.
+model CollectionPolicy {
+  id                        String   @id @default(uuid()) @db.Uuid
+  tenantId                  String   @map("tenant_id") @db.Uuid
+  tenant                    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  maxPromiseDeferralDays    Int      @default(15) @map("max_promise_deferral_days")
+  callingWindowStart        DateTime @default(dbgenerated("'10:00:00'::time without time zone")) @map("calling_window_start") @db.Time(0)
+  callingWindowEnd          DateTime @default(dbgenerated("'19:00:00'::time without time zone")) @map("calling_window_end") @db.Time(0)
+  timezone                  String   @default("Asia/Kolkata")
+  maxCallAttemptsPerCase    Int      @default(6) @map("max_call_attempts_per_case")
+  contactRiskSkipThreshold  Int      @default(70) @map("contact_risk_skip_threshold")
+  // Used only when the booking has no rate of its own; null means never invented.
+  defaultLateInterestRatePa Decimal? @map("default_late_interest_rate_pa") @db.Decimal(5, 2)
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId])
+  @@map("collection_policies")
+}
+
+// Reminder cadence relative to the due date; repeatEveryDays repeats the step after it fires.
+model CadenceStep {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  dayOffset       Int      @map("day_offset")
+  repeatEveryDays Int?     @map("repeat_every_days")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, dayOffset])
+  @@map("cadence_steps")
+}
+
+// Builder-approved script fragments the AI agent may use.
+model ApprovedTalkingPoint {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  key              String
+  text             String
+  requiresHomeLoan Boolean  @default(false) @map("requires_home_loan")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, key])
+  @@map("approved_talking_points")
 }
