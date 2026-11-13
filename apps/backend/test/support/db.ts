@@ -25,7 +25,13 @@ export function appClient(opts: { poolMax?: number } = {}): PrismaClient {
 }
 
 export async function resetDb(owner: PrismaClient): Promise<void> {
-  await owner.$executeRawUnsafe('TRUNCATE users, tenants CASCADE');
+  // Every public table except Prisma's own bookkeeping, so later migrations never need to edit this.
+  const rows = await owner.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+  if (rows.length === 0) return;
+  const list = rows.map((r) => `"${r.tablename.replaceAll('"', '""')}"`).join(', ');
+  await owner.$executeRawUnsafe(`TRUNCATE ${list} CASCADE`);
 }
 
 // Two active tenants with one user each, plus a suspended tenant.

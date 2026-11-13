@@ -16,12 +16,18 @@ enum TenantStatus {
   SUSPENDED
 }
 
+enum UserRole {
+  ADMIN
+  COLLECTIONS_LEAD
+  AGENT
+}
+
 model Tenant {
   id        String       @id @default(uuid()) @db.Uuid
   name      String
   status    TenantStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
+  createdAt DateTime     @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime     @updatedAt @db.Timestamptz(3) @map("updated_at")
   users     User[]
 
   @@map("tenants")
@@ -33,8 +39,9 @@ model User {
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   email     String
   name      String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  role      UserRole @default(AGENT)
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @updatedAt @db.Timestamptz(3) @map("updated_at")
 
   @@unique([tenantId, email])
   @@index([tenantId])
