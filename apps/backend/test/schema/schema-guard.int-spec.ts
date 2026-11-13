@@ -18,6 +18,10 @@ export const TENANT_TABLES: readonly string[] = [
   'collection_policies',
   'cadence_steps',
   'approved_talking_points',
+  'collection_cases',
+  'case_demands',
+  'scheduled_calls',
+  'call_attempts',
 ];
 
 describe('schema coverage guard', () => {
