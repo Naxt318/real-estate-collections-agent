@@ -72,6 +72,38 @@ enum PayerType {
   OTHER
 }
 
+enum PromiseStatus {
+  PENDING_APPROVAL
+  PENDING
+  KEPT
+  PARTIALLY_KEPT
+  BROKEN
+  REJECTED
+}
+
+enum MessageStatus {
+  SCHEDULED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum EscalationReason {
+  ABUSE
+  DISPUTE
+  HARDSHIP
+  HIGH_CONTACT_RISK
+  PROMISE_BEYOND_LIMIT
+  MAX_ATTEMPTS_REACHED
+  BUYER_REQUEST
+}
+
+enum EscalationStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
 enum CommunicationChannel {
   EMAIL
   SMS
@@ -101,6 +133,9 @@ model Tenant {
   caseDemands            CaseDemand[]
   scheduledCalls         ScheduledCall[]
   callAttempts           CallAttempt[]
+  paymentPromises        PaymentPromise[]
+  outboundMessages       OutboundMessage[]
+  escalations            Escalation[]
 
   @@map("tenants")
 }
@@ -115,6 +150,10 @@ model User {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  escalations Escalation[]
+
+  // Escalations reference an assignee by this composite key.
+  @@unique([tenantId, id])
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
@@ -218,6 +257,9 @@ model Person {
   collectionCases   CollectionCase[]
   scheduledCalls    ScheduledCall[]
   callAttempts      CallAttempt[]
+  paymentPromises   PaymentPromise[]
+  outboundMessages  OutboundMessage[]
+  escalations       Escalation[]
 
   @@unique([tenantId, source, externalId])
   @@unique([tenantId, id])
@@ -478,21 +520,24 @@ enum Hostility {
 // One open case per buyer: a partial unique index in the migration (where closed_at IS NULL)
 // enforces it, as Prisma cannot express a partial index.
 model CollectionCase {
-  id             String          @id @default(uuid()) @db.Uuid
-  tenantId       String          @map("tenant_id") @db.Uuid
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  personId       String          @map("person_id") @db.Uuid
-  person         Person          @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
-  status         CaseStatus      @default(OPEN)
-  handledBy      HandledBy       @default(AI) @map("handled_by")
-  attemptsCount  Int             @default(0) @map("attempts_count")
-  nextActionAt   DateTime?       @map("next_action_at") @db.Timestamptz(3)
-  closedAt       DateTime?       @map("closed_at") @db.Timestamptz(3)
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
-  demands        CaseDemand[]
-  scheduledCalls ScheduledCall[]
-  callAttempts   CallAttempt[]
+  id               String            @id @default(uuid()) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  personId         String            @map("person_id") @db.Uuid
+  person           Person            @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  status           CaseStatus        @default(OPEN)
+  handledBy        HandledBy         @default(AI) @map("handled_by")
+  attemptsCount    Int               @default(0) @map("attempts_count")
+  nextActionAt     DateTime?         @map("next_action_at") @db.Timestamptz(3)
+  closedAt         DateTime?         @map("closed_at") @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  demands          CaseDemand[]
+  scheduledCalls   ScheduledCall[]
+  callAttempts     CallAttempt[]
+  paymentPromises  PaymentPromise[]
+  outboundMessages OutboundMessage[]
+  escalations      Escalation[]
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
@@ -562,7 +607,86 @@ model CallAttempt {
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  paymentPromises PaymentPromise[]
+  escalations     Escalation[]
+
   // Task 8's score_events references a call attempt by this composite key.
   @@unique([tenantId, id])
   @@map("call_attempts")
+}
+
+// What a buyer agreed on a call. It covers the case's demands as a whole, so there is no
+// demand_id; agreed_amount may be less than the total (a partial promise).
+model PaymentPromise {
+  id               String            @id @default(uuid()) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId           String            @map("case_id") @db.Uuid
+  case             CollectionCase    @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId         String            @map("person_id") @db.Uuid
+  person           Person            @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  callAttemptId    String            @map("call_attempt_id") @db.Uuid
+  callAttempt      CallAttempt       @relation(fields: [tenantId, callAttemptId], references: [tenantId, id], onDelete: Restrict)
+  proposedDate     DateTime?         @map("proposed_date") @db.Date
+  agreedDate       DateTime          @map("agreed_date") @db.Date
+  agreedAmount     Decimal           @map("agreed_amount") @db.Decimal(14, 2)
+  currency         String            @default("INR") @db.Char(3)
+  status           PromiseStatus     @default(PENDING)
+  resolvedAt       DateTime?         @map("resolved_at") @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  outboundMessages OutboundMessage[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, agreedDate])
+  @@map("payment_promises")
+}
+
+// The payment-link nudge sent after a call. The link comes from the CRM adapter.
+model OutboundMessage {
+  id             String               @id @default(uuid()) @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId         String               @map("case_id") @db.Uuid
+  case           CollectionCase       @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId       String               @map("person_id") @db.Uuid
+  person         Person               @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  promiseId      String?              @map("promise_id") @db.Uuid
+  promise        PaymentPromise?      @relation(fields: [tenantId, promiseId], references: [tenantId, id], onDelete: Restrict)
+  channel        CommunicationChannel
+  paymentLinkUrl String               @map("payment_link_url")
+  amount         Decimal              @db.Decimal(14, 2)
+  currency       String               @default("INR") @db.Char(3)
+  sendAt         DateTime             @map("send_at") @db.Timestamptz(3)
+  sentAt         DateTime?            @map("sent_at") @db.Timestamptz(3)
+  status         MessageStatus        @default(SCHEDULED)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([tenantId, caseId])
+  @@map("outbound_messages")
+}
+
+// The collections lead's queue.
+model Escalation {
+  id               String           @id @default(uuid()) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId           String           @map("case_id") @db.Uuid
+  case             CollectionCase   @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId         String           @map("person_id") @db.Uuid
+  person           Person           @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  callAttemptId    String?          @map("call_attempt_id") @db.Uuid
+  callAttempt      CallAttempt?     @relation(fields: [tenantId, callAttemptId], references: [tenantId, id], onDelete: Restrict)
+  reason           EscalationReason
+  status           EscalationStatus @default(OPEN)
+  assignedToUserId String?          @map("assigned_to_user_id") @db.Uuid
+  assignedToUser   User?            @relation(fields: [tenantId, assignedToUserId], references: [tenantId, id], onDelete: Restrict)
+  resolutionNote   String?          @map("resolution_note")
+  resolvedAt       DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([tenantId, status, createdAt])
+  @@map("escalations")
 }
