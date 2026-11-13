@@ -16,13 +16,130 @@ enum TenantStatus {
   SUSPENDED
 }
 
+enum UserRole {
+  ADMIN
+  COLLECTIONS_LEAD
+  AGENT
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+enum SyncRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+// Which CRM a mirrored row came from. Grows with adapters.
+enum CrmSource {
+  DEMO
+  SALESFORCE
+}
+
+enum PlanType {
+  CONSTRUCTION_LINKED
+  TIME_LINKED
+  DOWN_PAYMENT
+  SUBVENTION
+  OTHER
+}
+
+enum BookingStatus {
+  ACTIVE
+  CANCELLED
+  POSSESSION_HANDED_OVER
+}
+
+enum ApplicantRole {
+  PRIMARY
+  CO_APPLICANT
+}
+
+enum DemandStatus {
+  RAISED
+  PARTIALLY_PAID
+  PAID
+  WITHDRAWN
+}
+
+enum PayerType {
+  BUYER
+  BANK
+  OTHER
+}
+
+enum PromiseStatus {
+  PENDING_APPROVAL
+  PENDING
+  KEPT
+  PARTIALLY_KEPT
+  BROKEN
+  REJECTED
+}
+
+enum MessageStatus {
+  SCHEDULED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum EscalationReason {
+  ABUSE
+  DISPUTE
+  HARDSHIP
+  HIGH_CONTACT_RISK
+  PROMISE_BEYOND_LIMIT
+  MAX_ATTEMPTS_REACHED
+  BUYER_REQUEST
+}
+
+enum EscalationStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum CommunicationChannel {
+  EMAIL
+  SMS
+}
+
 model Tenant {
-  id        String       @id @default(uuid()) @db.Uuid
-  name      String
-  status    TenantStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
-  users     User[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  name                   String
+  status                 TenantStatus            @default(ACTIVE)
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  users                  User[]
+  projects               Project[]
+  towers                 Tower[]
+  units                  Unit[]
+  persons                Person[]
+  bookings               Booking[]
+  bookingApplicants      BookingApplicant[]
+  demands                Demand[]
+  payments               Payment[]
+  integrationConnections IntegrationConnection[]
+  syncRuns               SyncRun[]
+  collectionPolicy       CollectionPolicy?
+  cadenceSteps           CadenceStep[]
+  approvedTalkingPoints  ApprovedTalkingPoint[]
+  collectionCases        CollectionCase[]
+  caseDemands            CaseDemand[]
+  scheduledCalls         ScheduledCall[]
+  callAttempts           CallAttempt[]
+  paymentPromises        PaymentPromise[]
+  outboundMessages       OutboundMessage[]
+  escalations            Escalation[]
+  riskScores             RiskScore[]
+  scoreEvents            ScoreEvent[]
+  auditLogs              AuditLog[]
+  outboxEvents           OutboxEvent[]
 
   @@map("tenants")
 }
@@ -33,10 +150,660 @@ model User {
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   email     String
   name      String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  role      UserRole @default(AGENT)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  escalations Escalation[]
+  scoreEvents ScoreEvent[]
+  auditLogs   AuditLog[]
+
+  // Escalations reference an assignee by this composite key.
+  @@unique([tenantId, id])
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
+}
+
+// Mirrored from the CRM: the sync job is the only writer.
+model Project {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source             CrmSource
+  externalId         String    @map("external_id")
+  lastSyncedAt       DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload         Json?     @map("raw_payload")
+  name               String
+  city               String?
+  // Interest rules are state-specific.
+  state              String?
+  reraRegistrationNo String?   @map("rera_registration_no")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  towers             Tower[]
+  units              Unit[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@map("projects")
+}
+
+model Tower {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source       CrmSource
+  externalId   String    @map("external_id")
+  lastSyncedAt DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload   Json?     @map("raw_payload")
+  projectId    String    @map("project_id") @db.Uuid
+  project      Project   @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict)
+  name         String
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  units        Unit[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@index([tenantId, projectId])
+  @@map("towers")
+}
+
+model Unit {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source         CrmSource
+  externalId     String    @map("external_id")
+  lastSyncedAt   DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload     Json?     @map("raw_payload")
+  projectId      String    @map("project_id") @db.Uuid
+  project        Project   @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Restrict)
+  // Optional grouping: a unit may sit directly under its project.
+  towerId        String?   @map("tower_id") @db.Uuid
+  tower          Tower?    @relation(fields: [tenantId, towerId], references: [tenantId, id], onDelete: Restrict)
+  unitNumber     String    @map("unit_number")
+  floor          Int?
+  carpetAreaSqft Decimal?  @map("carpet_area_sqft") @db.Decimal(10, 2)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  bookings       Booking[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@index([tenantId, projectId])
+  @@index([tenantId, towerId])
+  @@map("units")
+}
+
+// A buyer. One person can hold many bookings. The contact-preference columns are
+// platform-owned: the sync must never overwrite them (it may set doNotCall, never clear it).
+model Person {
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source            CrmSource
+  externalId        String                @map("external_id")
+  lastSyncedAt      DateTime              @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload        Json?                 @map("raw_payload")
+  fullName          String                @map("full_name")
+  // E.164, enforced by a CHECK constraint in the migration.
+  primaryPhone      String                @map("primary_phone")
+  altPhone          String?               @map("alt_phone")
+  email             String?
+  preferredLanguage String?               @map("preferred_language")
+  doNotCall         Boolean               @default(false) @map("do_not_call")
+  optedOutAt        DateTime?             @map("opted_out_at") @db.Timestamptz(3)
+  preferredChannel  CommunicationChannel? @map("preferred_channel")
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  primaryBookings   Booking[]
+  applications      BookingApplicant[]
+  collectionCases   CollectionCase[]
+  scheduledCalls    ScheduledCall[]
+  callAttempts      CallAttempt[]
+  paymentPromises   PaymentPromise[]
+  outboundMessages  OutboundMessage[]
+  escalations       Escalation[]
+  riskScores        RiskScore[]
+  scoreEvents       ScoreEvent[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@map("persons")
+}
+
+model Booking {
+  id                        String             @id @default(uuid()) @db.Uuid
+  tenantId                  String             @map("tenant_id") @db.Uuid
+  tenant                    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source                    CrmSource
+  externalId                String             @map("external_id")
+  lastSyncedAt              DateTime           @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload                Json?              @map("raw_payload")
+  unitId                    String             @map("unit_id") @db.Uuid
+  unit                      Unit               @relation(fields: [tenantId, unitId], references: [tenantId, id], onDelete: Restrict)
+  planType                  PlanType           @map("plan_type")
+  status                    BookingStatus
+  bookingDate               DateTime           @map("booking_date") @db.Date
+  agreementDate             DateTime?          @map("agreement_date") @db.Date
+  agreementValue            Decimal            @map("agreement_value") @db.Decimal(14, 2)
+  currency                  String             @default("INR") @db.Char(3)
+  hasHomeLoan               Boolean            @default(false) @map("has_home_loan")
+  lenderName                String?            @map("lender_name")
+  // Percent per annum; null means the builder has not set one for this booking.
+  latePaymentInterestRatePa Decimal?           @map("late_payment_interest_rate_pa") @db.Decimal(5, 2)
+  primaryContactPersonId    String             @map("primary_contact_person_id") @db.Uuid
+  primaryContact            Person             @relation(fields: [tenantId, primaryContactPersonId], references: [tenantId, id], onDelete: Restrict)
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  applicants                BookingApplicant[]
+  demands                   Demand[]
+  payments                  Payment[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@index([tenantId, unitId])
+  @@index([tenantId, primaryContactPersonId])
+  @@map("bookings")
+}
+
+// Join table; the sync derives it from the booking record, so it has no mirror columns.
+model BookingApplicant {
+  id        String        @id @default(uuid()) @db.Uuid
+  tenantId  String        @map("tenant_id") @db.Uuid
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  bookingId String        @map("booking_id") @db.Uuid
+  booking   Booking       @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+  personId  String        @map("person_id") @db.Uuid
+  person    Person        @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  role      ApplicantRole
+  // 1 is called first; positive, enforced by a CHECK constraint in the migration.
+  callOrder Int           @map("call_order")
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([bookingId, personId])
+  @@index([tenantId, personId])
+  @@map("booking_applicants")
+}
+
+// One row per demand letter the CRM raised. The stage is free text because builders name stages
+// differently. Amounts are enforced non-negative, and the bank share bounded, by CHECKs in the migration.
+model Demand {
+  id                 String       @id @default(uuid()) @db.Uuid
+  tenantId           String       @map("tenant_id") @db.Uuid
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source             CrmSource
+  externalId         String       @map("external_id")
+  lastSyncedAt       DateTime     @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload         Json?        @map("raw_payload")
+  bookingId          String       @map("booking_id") @db.Uuid
+  booking            Booking      @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+  stageName          String       @map("stage_name")
+  stageSequence      Int          @map("stage_sequence")
+  demandDate         DateTime     @map("demand_date") @db.Date
+  dueDate            DateTime     @map("due_date") @db.Date
+  amountDue          Decimal      @map("amount_due") @db.Decimal(14, 2)
+  // The lender's tranche when the CRM records the split.
+  expectedBankAmount Decimal?     @map("expected_bank_amount") @db.Decimal(14, 2)
+  // The CRM's own outstanding figure, when it reports one.
+  crmOutstanding     Decimal?     @map("crm_outstanding") @db.Decimal(14, 2)
+  status             DemandStatus
+  currency           String       @default("INR") @db.Char(3)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  payments           Payment[]
+  caseDemands        CaseDemand[]
+
+  @@unique([tenantId, source, externalId])
+  @@unique([tenantId, id])
+  @@index([tenantId, bookingId])
+  @@index([tenantId, status, dueDate])
+  @@map("demands")
+}
+
+// A receipt the CRM recorded. demandId is null when the CRM does not allocate it to a demand.
+model Payment {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source       CrmSource
+  externalId   String    @map("external_id")
+  lastSyncedAt DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  rawPayload   Json?     @map("raw_payload")
+  bookingId    String    @map("booking_id") @db.Uuid
+  booking      Booking   @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+  demandId     String?   @map("demand_id") @db.Uuid
+  demand       Demand?   @relation(fields: [tenantId, demandId], references: [tenantId, id], onDelete: Restrict)
+  // Positive, enforced by a CHECK constraint in the migration.
+  amount       Decimal   @db.Decimal(14, 2)
+  currency     String    @default("INR") @db.Char(3)
+  paidAt       DateTime  @map("paid_at") @db.Timestamptz(3)
+  payerType    PayerType @map("payer_type")
+  reference    String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId, demandId])
+  @@index([tenantId, bookingId])
+  @@map("payments")
+}
+
+// One CRM connection per source per tenant. Credentials live in Secret Manager; secretRef only points at them.
+model IntegrationConnection {
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  source        CrmSource
+  status        IntegrationStatus @default(ACTIVE)
+  secretRef     String            @map("secret_ref")
+  config        Json              @default("{}")
+  lastSuccessAt DateTime?         @map("last_success_at") @db.Timestamptz(3)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  syncRuns      SyncRun[]
+
+  @@unique([tenantId, source])
+  @@unique([tenantId, id])
+  @@map("integration_connections")
+}
+
+// Append-only audit trail of CRM syncs, so no updatedAt.
+model SyncRun {
+  id           String                @id @default(uuid()) @db.Uuid
+  tenantId     String                @map("tenant_id") @db.Uuid
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  connectionId String                @map("connection_id") @db.Uuid
+  connection   IntegrationConnection @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  startedAt    DateTime              @map("started_at") @db.Timestamptz(3)
+  finishedAt   DateTime?             @map("finished_at") @db.Timestamptz(3)
+  status       SyncRunStatus         @default(RUNNING)
+  counts       Json                  @default("{}")
+  error        String?
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, connectionId, startedAt])
+  @@map("sync_runs")
+}
+
+// One row per tenant. The calling window defaults to 10:00-19:00 via dbgenerated, as Prisma has no
+// native default for a TIME column. Ranges are enforced by CHECKs in the migration.
+model CollectionPolicy {
+  id                        String   @id @default(uuid()) @db.Uuid
+  tenantId                  String   @map("tenant_id") @db.Uuid
+  tenant                    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  maxPromiseDeferralDays    Int      @default(15) @map("max_promise_deferral_days")
+  callingWindowStart        DateTime @default(dbgenerated("'10:00:00'::time without time zone")) @map("calling_window_start") @db.Time(0)
+  callingWindowEnd          DateTime @default(dbgenerated("'19:00:00'::time without time zone")) @map("calling_window_end") @db.Time(0)
+  timezone                  String   @default("Asia/Kolkata")
+  maxCallAttemptsPerCase    Int      @default(6) @map("max_call_attempts_per_case")
+  contactRiskSkipThreshold  Int      @default(70) @map("contact_risk_skip_threshold")
+  // Used only when the booking has no rate of its own; null means never invented.
+  defaultLateInterestRatePa Decimal? @map("default_late_interest_rate_pa") @db.Decimal(5, 2)
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId])
+  @@map("collection_policies")
+}
+
+// Reminder cadence relative to the due date; repeatEveryDays repeats the step after it fires.
+model CadenceStep {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  dayOffset       Int      @map("day_offset")
+  repeatEveryDays Int?     @map("repeat_every_days")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, dayOffset])
+  @@map("cadence_steps")
+}
+
+// Builder-approved script fragments the AI agent may use.
+model ApprovedTalkingPoint {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  key              String
+  text             String
+  requiresHomeLoan Boolean  @default(false) @map("requires_home_loan")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, key])
+  @@map("approved_talking_points")
+}
+
+enum CaseStatus {
+  OPEN
+  CALL_SCHEDULED
+  PROMISED
+  AWAITING_APPROVAL
+  NUDGED
+  PAID
+  ESCALATED
+  CLOSED_UNRESOLVED
+}
+
+enum CallOutcome {
+  PROMISED
+  PAYMENT_LINK_REQUESTED
+  CLAIMS_ALREADY_PAID
+  CALLBACK_REQUESTED
+  DISPUTE
+  HARDSHIP
+  WRONG_NUMBER
+  NO_ANSWER
+  BUSY
+  DECLINED_TO_DISCUSS
+  OPTED_OUT
+  ABUSIVE
+}
+
+enum HandledBy {
+  AI
+  HUMAN
+}
+
+enum ScheduledCallStatus {
+  PENDING
+  DISPATCHED
+  CANCELLED
+  SKIPPED
+}
+
+enum Hostility {
+  NONE
+  MILD
+  HIGH
+  ABUSIVE
+}
+
+// One open case per buyer: a partial unique index in the migration (where closed_at IS NULL)
+// enforces it, as Prisma cannot express a partial index.
+model CollectionCase {
+  id               String            @id @default(uuid()) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  personId         String            @map("person_id") @db.Uuid
+  person           Person            @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  status           CaseStatus        @default(OPEN)
+  handledBy        HandledBy         @default(AI) @map("handled_by")
+  attemptsCount    Int               @default(0) @map("attempts_count")
+  nextActionAt     DateTime?         @map("next_action_at") @db.Timestamptz(3)
+  closedAt         DateTime?         @map("closed_at") @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  demands          CaseDemand[]
+  scheduledCalls   ScheduledCall[]
+  callAttempts     CallAttempt[]
+  paymentPromises  PaymentPromise[]
+  outboundMessages OutboundMessage[]
+  escalations      Escalation[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, personId])
+  @@map("collection_cases")
+}
+
+// Which demands a case covers. A demand is active in at most one case: a partial unique index
+// in the migration (where removed_at IS NULL).
+model CaseDemand {
+  id        String         @id @default(uuid()) @db.Uuid
+  tenantId  String         @map("tenant_id") @db.Uuid
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId    String         @map("case_id") @db.Uuid
+  case      CollectionCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  demandId  String         @map("demand_id") @db.Uuid
+  demand    Demand         @relation(fields: [tenantId, demandId], references: [tenantId, id], onDelete: Restrict)
+  addedAt   DateTime       @default(now()) @map("added_at") @db.Timestamptz(3)
+  removedAt DateTime?      @map("removed_at") @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([tenantId, demandId])
+  @@index([tenantId, caseId])
+  @@map("case_demands")
+}
+
+// skipReason is free text (for example LOAN_SPLIT_UNKNOWN), not an enum.
+model ScheduledCall {
+  id           String              @id @default(uuid()) @db.Uuid
+  tenantId     String              @map("tenant_id") @db.Uuid
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId       String              @map("case_id") @db.Uuid
+  case         CollectionCase      @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId     String              @map("person_id") @db.Uuid
+  person       Person              @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  scheduledFor DateTime            @map("scheduled_for") @db.Timestamptz(3)
+  status       ScheduledCallStatus @default(PENDING)
+  skipReason   String?             @map("skip_reason")
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  callAttempts CallAttempt[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, scheduledFor])
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
+  @@map("scheduled_calls")
+}
+
+// The transcript lives in Cloud Storage, redacted; only its URI is stored here.
+model CallAttempt {
+  id              String         @id @default(uuid()) @db.Uuid
+  tenantId        String         @map("tenant_id") @db.Uuid
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  scheduledCallId String?        @map("scheduled_call_id") @db.Uuid
+  scheduledCall   ScheduledCall? @relation(fields: [tenantId, scheduledCallId], references: [tenantId, id], onDelete: Restrict)
+  caseId          String         @map("case_id") @db.Uuid
+  case            CollectionCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId        String         @map("person_id") @db.Uuid
+  person          Person         @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  providerCallId  String?        @map("provider_call_id")
+  startedAt       DateTime       @map("started_at") @db.Timestamptz(3)
+  endedAt         DateTime?      @map("ended_at") @db.Timestamptz(3)
+  durationSec     Int?           @map("duration_sec")
+  connected       Boolean
+  outcome         CallOutcome?
+  hostility       Hostility      @default(NONE)
+  summary         String?
+  transcriptUri   String?        @map("transcript_uri")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  paymentPromises PaymentPromise[]
+  escalations     Escalation[]
+  scoreEvents     ScoreEvent[]
+
+  // Task 8's score_events references a call attempt by this composite key.
+  @@unique([tenantId, id])
+  @@index([tenantId, scheduledCallId])
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
+  @@map("call_attempts")
+}
+
+// What a buyer agreed on a call. It covers the case's demands as a whole, so there is no
+// demand_id; agreed_amount may be less than the total (a partial promise).
+model PaymentPromise {
+  id               String            @id @default(uuid()) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId           String            @map("case_id") @db.Uuid
+  case             CollectionCase    @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId         String            @map("person_id") @db.Uuid
+  person           Person            @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  callAttemptId    String            @map("call_attempt_id") @db.Uuid
+  callAttempt      CallAttempt       @relation(fields: [tenantId, callAttemptId], references: [tenantId, id], onDelete: Restrict)
+  proposedDate     DateTime?         @map("proposed_date") @db.Date
+  agreedDate       DateTime          @map("agreed_date") @db.Date
+  agreedAmount     Decimal           @map("agreed_amount") @db.Decimal(14, 2)
+  currency         String            @default("INR") @db.Char(3)
+  status           PromiseStatus     @default(PENDING)
+  resolvedAt       DateTime?         @map("resolved_at") @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  outboundMessages OutboundMessage[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, agreedDate])
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
+  @@index([tenantId, callAttemptId])
+  @@map("payment_promises")
+}
+
+// The payment-link nudge sent after a call. The link comes from the CRM adapter.
+model OutboundMessage {
+  id             String               @id @default(uuid()) @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId         String               @map("case_id") @db.Uuid
+  case           CollectionCase       @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId       String               @map("person_id") @db.Uuid
+  person         Person               @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  promiseId      String?              @map("promise_id") @db.Uuid
+  promise        PaymentPromise?      @relation(fields: [tenantId, promiseId], references: [tenantId, id], onDelete: Restrict)
+  channel        CommunicationChannel
+  paymentLinkUrl String               @map("payment_link_url")
+  amount         Decimal              @db.Decimal(14, 2)
+  currency       String               @default("INR") @db.Char(3)
+  sendAt         DateTime             @map("send_at") @db.Timestamptz(3)
+  sentAt         DateTime?            @map("sent_at") @db.Timestamptz(3)
+  status         MessageStatus        @default(SCHEDULED)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
+  @@index([tenantId, promiseId])
+  @@map("outbound_messages")
+}
+
+// The collections lead's queue.
+model Escalation {
+  id               String           @id @default(uuid()) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  caseId           String           @map("case_id") @db.Uuid
+  case             CollectionCase   @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Restrict)
+  personId         String           @map("person_id") @db.Uuid
+  person           Person           @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  callAttemptId    String?          @map("call_attempt_id") @db.Uuid
+  callAttempt      CallAttempt?     @relation(fields: [tenantId, callAttemptId], references: [tenantId, id], onDelete: Restrict)
+  reason           EscalationReason
+  status           EscalationStatus @default(OPEN)
+  assignedToUserId String?          @map("assigned_to_user_id") @db.Uuid
+  assignedToUser   User?            @relation(fields: [tenantId, assignedToUserId], references: [tenantId, id], onDelete: Restrict)
+  resolutionNote   String?          @map("resolution_note")
+  resolvedAt       DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
+  @@index([tenantId, callAttemptId])
+  @@index([tenantId, assignedToUserId])
+  @@map("escalations")
+}
+
+enum ScoreKind {
+  CONTACT
+  PAYMENT
+}
+
+enum RiskBand {
+  LOW
+  MEDIUM
+  HIGH
+  INSUFFICIENT_HISTORY
+}
+
+enum ScoreSource {
+  RULE
+  AI
+  HUMAN
+}
+
+// Current score per person and kind. Contact risk drives whether the AI calls.
+model RiskScore {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  personId  String    @map("person_id") @db.Uuid
+  person    Person    @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  kind      ScoreKind
+  value     Int
+  band      RiskBand
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, personId, kind])
+  @@map("risk_scores")
+}
+
+// Append-only: every score change explains itself.
+model ScoreEvent {
+  id            String       @id @default(uuid()) @db.Uuid
+  tenantId      String       @map("tenant_id") @db.Uuid
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  personId      String       @map("person_id") @db.Uuid
+  person        Person       @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  kind          ScoreKind
+  delta         Int
+  valueAfter    Int          @map("value_after")
+  reason        String
+  source        ScoreSource
+  actorUserId   String?      @map("actor_user_id") @db.Uuid
+  actorUser     User?        @relation(fields: [tenantId, actorUserId], references: [tenantId, id], onDelete: Restrict)
+  callAttemptId String?      @map("call_attempt_id") @db.Uuid
+  callAttempt   CallAttempt? @relation(fields: [tenantId, callAttemptId], references: [tenantId, id], onDelete: Restrict)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, personId, createdAt])
+  @@index([tenantId, actorUserId])
+  @@index([tenantId, callAttemptId])
+  @@map("score_events")
+}
+
+// Append-only record of policy changes, escalation resolutions and score corrections.
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorUser   User?    @relation(fields: [tenantId, actorUserId], references: [tenantId, id], onDelete: Restrict)
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id") @db.Uuid
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, actorUserId])
+  @@index([tenantId, entityType, entityId])
+  @@map("audit_logs")
+}
+
+// Transactional outbox (CLAUDE.md 6.6). The app role may mark rows processed.
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  type        String
+  payload     Json
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, processedAt])
+  @@map("outbox_events")
 }

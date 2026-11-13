@@ -12,6 +12,15 @@ export default function setup(): void {
       'TEST_DATABASE_URL and TEST_MIGRATION_DATABASE_URL must be set for integration tests',
     );
   }
+  // resetDb truncates every table: refuse to run if the test URLs point at the dev database.
+  if (
+    testUrl === process.env.DATABASE_URL ||
+    testMigrationUrl === process.env.MIGRATION_DATABASE_URL
+  ) {
+    throw new Error(
+      'TEST_DATABASE_URL must differ from DATABASE_URL, and TEST_MIGRATION_DATABASE_URL from MIGRATION_DATABASE_URL',
+    );
+  }
   process.env.DATABASE_URL = testUrl;
 
   execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
