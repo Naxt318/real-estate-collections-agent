@@ -136,6 +136,10 @@ model Tenant {
   paymentPromises        PaymentPromise[]
   outboundMessages       OutboundMessage[]
   escalations            Escalation[]
+  riskScores             RiskScore[]
+  scoreEvents            ScoreEvent[]
+  auditLogs              AuditLog[]
+  outboxEvents           OutboxEvent[]
 
   @@map("tenants")
 }
@@ -151,6 +155,8 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   escalations Escalation[]
+  scoreEvents ScoreEvent[]
+  auditLogs   AuditLog[]
 
   // Escalations reference an assignee by this composite key.
   @@unique([tenantId, id])
@@ -260,6 +266,8 @@ model Person {
   paymentPromises   PaymentPromise[]
   outboundMessages  OutboundMessage[]
   escalations       Escalation[]
+  riskScores        RiskScore[]
+  scoreEvents       ScoreEvent[]
 
   @@unique([tenantId, source, externalId])
   @@unique([tenantId, id])
@@ -609,6 +617,7 @@ model CallAttempt {
 
   paymentPromises PaymentPromise[]
   escalations     Escalation[]
+  scoreEvents     ScoreEvent[]
 
   // Task 8's score_events references a call attempt by this composite key.
   @@unique([tenantId, id])
@@ -689,4 +698,92 @@ model Escalation {
 
   @@index([tenantId, status, createdAt])
   @@map("escalations")
+}
+
+enum ScoreKind {
+  CONTACT
+  PAYMENT
+}
+
+enum RiskBand {
+  LOW
+  MEDIUM
+  HIGH
+  INSUFFICIENT_HISTORY
+}
+
+enum ScoreSource {
+  RULE
+  AI
+  HUMAN
+}
+
+// Current score per person and kind. Contact risk drives whether the AI calls.
+model RiskScore {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  personId  String    @map("person_id") @db.Uuid
+  person    Person    @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  kind      ScoreKind
+  value     Int
+  band      RiskBand
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, personId, kind])
+  @@map("risk_scores")
+}
+
+// Append-only: every score change explains itself.
+model ScoreEvent {
+  id            String       @id @default(uuid()) @db.Uuid
+  tenantId      String       @map("tenant_id") @db.Uuid
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  personId      String       @map("person_id") @db.Uuid
+  person        Person       @relation(fields: [tenantId, personId], references: [tenantId, id], onDelete: Restrict)
+  kind          ScoreKind
+  delta         Int
+  valueAfter    Int          @map("value_after")
+  reason        String
+  source        ScoreSource
+  actorUserId   String?      @map("actor_user_id") @db.Uuid
+  actorUser     User?        @relation(fields: [tenantId, actorUserId], references: [tenantId, id], onDelete: Restrict)
+  callAttemptId String?      @map("call_attempt_id") @db.Uuid
+  callAttempt   CallAttempt? @relation(fields: [tenantId, callAttemptId], references: [tenantId, id], onDelete: Restrict)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, personId, createdAt])
+  @@map("score_events")
+}
+
+// Append-only record of policy changes, escalation resolutions and score corrections.
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorUser   User?    @relation(fields: [tenantId, actorUserId], references: [tenantId, id], onDelete: Restrict)
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id") @db.Uuid
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("audit_logs")
+}
+
+// Transactional outbox (CLAUDE.md 6.6). The app role may mark rows processed.
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  type        String
+  payload     Json
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, processedAt])
+  @@map("outbox_events")
 }
