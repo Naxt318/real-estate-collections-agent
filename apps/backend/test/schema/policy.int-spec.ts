@@ -53,10 +53,18 @@ describe('integration and policy', () => {
     ],
     ['zero call attempts', { maxCallAttemptsPerCase: 0 }],
     ['negative deferral days', { maxPromiseDeferralDays: -1 }],
+    ['negative default interest rate', { defaultLateInterestRatePa: '-0.01' }],
+    ['default interest rate above 100', { defaultLateInterestRatePa: '100.01' }],
   ])('invalid policy values reject: %s', async (_name, overrides) => {
     await expect(
       owner.collectionPolicy.create({ data: { tenantId: ids.a, ...overrides } }),
     ).rejects.toMatchObject(checkViolation);
+  });
+
+  it.each(['0.00', '100.00'])('default interest rate %s is accepted', async (rate) => {
+    await expect(
+      owner.collectionPolicy.create({ data: { tenantId: ids.a, defaultLateInterestRatePa: rate } }),
+    ).resolves.toBeTruthy();
   });
 
   it('one connection per source per tenant', async () => {

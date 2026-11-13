@@ -22,7 +22,6 @@ enum UserRole {
   AGENT
 }
 
-// Which CRM a mirrored row came from. Grows with adapters.
 enum IntegrationStatus {
   ACTIVE
   DISABLED
@@ -35,6 +34,7 @@ enum SyncRunStatus {
   FAILED
 }
 
+// Which CRM a mirrored row came from. Grows with adapters.
 enum CrmSource {
   DEMO
   SALESFORCE
@@ -549,6 +549,7 @@ model CollectionCase {
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
+  @@index([tenantId, personId])
   @@map("collection_cases")
 }
 
@@ -568,6 +569,7 @@ model CaseDemand {
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([tenantId, demandId])
+  @@index([tenantId, caseId])
   @@map("case_demands")
 }
 
@@ -589,6 +591,8 @@ model ScheduledCall {
 
   @@unique([tenantId, id])
   @@index([tenantId, status, scheduledFor])
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
   @@map("scheduled_calls")
 }
 
@@ -621,6 +625,9 @@ model CallAttempt {
 
   // Task 8's score_events references a call attempt by this composite key.
   @@unique([tenantId, id])
+  @@index([tenantId, scheduledCallId])
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
   @@map("call_attempts")
 }
 
@@ -648,6 +655,9 @@ model PaymentPromise {
 
   @@unique([tenantId, id])
   @@index([tenantId, status, agreedDate])
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
+  @@index([tenantId, callAttemptId])
   @@map("payment_promises")
 }
 
@@ -673,6 +683,8 @@ model OutboundMessage {
   updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([tenantId, caseId])
+  @@index([tenantId, personId])
+  @@index([tenantId, promiseId])
   @@map("outbound_messages")
 }
 
@@ -697,6 +709,10 @@ model Escalation {
   updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([tenantId, status, createdAt])
+  @@index([tenantId, caseId])
+  @@index([tenantId, personId])
+  @@index([tenantId, callAttemptId])
+  @@index([tenantId, assignedToUserId])
   @@map("escalations")
 }
 
@@ -754,6 +770,8 @@ model ScoreEvent {
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([tenantId, personId, createdAt])
+  @@index([tenantId, actorUserId])
+  @@index([tenantId, callAttemptId])
   @@map("score_events")
 }
 
@@ -771,6 +789,8 @@ model AuditLog {
   after       Json?
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  @@index([tenantId, actorUserId])
+  @@index([tenantId, entityType, entityId])
   @@map("audit_logs")
 }
 

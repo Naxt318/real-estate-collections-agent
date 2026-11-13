@@ -83,6 +83,14 @@ describe('money mirror: demands, payments', () => {
     });
   });
 
+  it('negative bank share rejects', async () => {
+    await expect(
+      createBookingGraph(owner, ids.a, { expectedBankAmount: '-1.00' }),
+    ).rejects.toMatchObject({
+      meta: { driverAdapterError: { cause: { code: '23514' } } },
+    });
+  });
+
   it('payment without a demand is allowed', async () => {
     const g = await createBookingGraph(owner, ids.a);
     await expect(
