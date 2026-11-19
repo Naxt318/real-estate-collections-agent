@@ -1297,12 +1297,12 @@ Unless specifically approved, do not build:
 - WhatsApp marketing.
 - SMS marketing campaigns.
 - Email marketing.
-
-Transactional payment-link messages sent after a call are in scope; marketing is not. Use email for the MVP, because SMS needs DLT template registration.
 - Accounting software.
 - Employee management.
 - Unnecessary AI agents.
 - Unnecessary third-party integrations.
+
+Transactional payment-link messages sent after a call are in scope; marketing is not. Use email for the MVP, because SMS needs DLT template registration.
 
 Prioritise a working collections workflow over feature quantity.
 
