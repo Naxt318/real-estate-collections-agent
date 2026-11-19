@@ -554,7 +554,8 @@ export function buildDemoDataset(key: DemoTenantKey, asOf: Date): DemoDataset {
           personId,
           callAttemptId: callId,
           createdAt: callStart(callId),
-          proposedDate: daysAgo(promiseDays[i]! + 3),
+          // The buyer first asked for a date 3 days later; the AI negotiated it earlier.
+          proposedDate: daysAgo(promiseDays[i]! - 3),
           agreedDate: daysAgo(promiseDays[i]!),
           agreedAmount: SLAB_AMOUNT,
           status: 'BROKEN',

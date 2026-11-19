@@ -62,21 +62,23 @@ describe('payment promises, outbound messages and escalations', () => {
     });
   });
 
-  it('agreed date before the proposed date rejects', async () => {
+  // Founder decision: no ordering rule between the dates. The AI normally pulls the buyer's date
+  // earlier, but a buyer may also revise it later; the policy's deferral limit bounds lateness.
+  it.each([
+    ['earlier than', '2026-12-01'],
+    ['later than', '2026-12-09'],
+  ])('agreed date %s the proposed date is accepted', async (_label, agreed) => {
     const s = await setup(ids.a);
-    await expect(
-      owner.paymentPromise.create({
-        data: {
-          tenantId: ids.a,
-          ...s,
-          proposedDate: new Date('2026-12-05'),
-          agreedDate: new Date('2026-12-01'),
-          agreedAmount: '1000.00',
-        },
-      }),
-    ).rejects.toMatchObject({
-      meta: { driverAdapterError: { cause: { code: '23514' } } },
+    const promise = await owner.paymentPromise.create({
+      data: {
+        tenantId: ids.a,
+        ...s,
+        proposedDate: new Date('2026-12-05'),
+        agreedDate: new Date(agreed),
+        agreedAmount: '1000.00',
+      },
     });
+    expect(promise.agreedDate.toISOString().slice(0, 10)).toBe(agreed);
   });
 
   it('escalation can be assigned only to a same-tenant user', async () => {
