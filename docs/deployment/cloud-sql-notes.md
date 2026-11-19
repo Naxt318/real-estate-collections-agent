@@ -12,3 +12,11 @@ Every tenant table has `FORCE ROW LEVEL SECURITY` (see `apps/backend/prisma/migr
 The comment in that migration ("only superusers (migrations, seed) bypass them") is accurate for local Docker only. Applied migrations are not edited, so this note is the correction.
 
 Fix options, to choose when deploying: run seeds and data migrations per tenant with `set_config('app.tenant_id', …, true)` inside a transaction, or give a dedicated, NOLOGIN maintenance role targeted policies, in the same way as the `app_directory` role.
+
+## The `app_directory` role needs CREATE on schema `public` while ownership changes
+
+`20261113012611_directory_role` runs `ALTER FUNCTION … OWNER TO app_directory`. PostgreSQL only allows that when the new owner has CREATE on the function's schema (superusers are exempt). `app_directory` does not have it, so on Cloud SQL that migration fails with "permission denied for schema public". Before the first Cloud SQL deploy, add a migration that wraps the ownership change in a temporary `GRANT CREATE ON SCHEMA public TO app_directory` and `REVOKE CREATE ON SCHEMA public FROM app_directory`. Ownership does not need CREATE to persist.
+
+## Grants must not be re-broadened
+
+Migrations `REVOKE UPDATE, DELETE` on `score_events` and `audit_logs` from `app_user`. A Cloud SQL bootstrap script must create `app_user` and set default privileges before `migrate deploy`. It must never run a blanket `GRANT … ON ALL TABLES TO app_user`, which would silently undo the append-only revokes.

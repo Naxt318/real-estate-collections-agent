@@ -84,6 +84,8 @@ describe('buildDemoDataset', () => {
     expect(promises).toHaveLength(2);
     expect(promises.every((p) => p.status === 'BROKEN')).toBe(true);
     expect(promises.every((p) => !('demandId' in p))).toBe(true);
+    // The AI negotiated each date earlier than the buyer's first ask.
+    expect(promises.every((p) => p.proposedDate! > p.agreedDate)).toBe(true);
     expect(
       a.riskScores.find((r) => r.personId === personId('Karan') && r.kind === 'PAYMENT'),
     ).toMatchObject({
