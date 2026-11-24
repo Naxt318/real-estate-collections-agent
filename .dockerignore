@@ -1,0 +1,19 @@
+**/node_modules
+**/.env*
+!**/.env.example
+**/dist
+**/.next
+**/coverage
+# Build outputs must come from this build, never from a developer's machine:
+# a stale tsbuildinfo can make tsc skip emitting dist, and a stale Prisma client
+# would hide a missing `prisma generate`.
+**/*.tsbuildinfo
+**/src/generated
+# Not needed by the backend; keeping them out keeps the build cache valid.
+apps/frontend
+docs
+.git
+.github
+.claude
+.superpowers
+.vscode
