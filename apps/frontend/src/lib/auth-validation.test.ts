@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { validateForgotPassword, validateLogin, validateResetPassword } from './auth-validation';
+import {
+  validateForgotPassword,
+  validateLogin,
+  validateRequestAccess,
+  validateResetPassword,
+} from './auth-validation';
 
 describe('validateLogin', () => {
   it('accepts a valid email and any non-empty password', () => {
@@ -72,5 +77,47 @@ describe('validateResetPassword', () => {
     expect(
       validateResetPassword({ password: 'correct horse', confirmPassword: 'correct horses' }),
     ).toEqual({ confirmPassword: 'Passwords do not match' });
+  });
+});
+
+describe('validateRequestAccess', () => {
+  const valid = {
+    company: 'Skyline Developers',
+    name: 'Priya Sharma',
+    email: 'priya@skyline.example',
+    phone: '+91 98765 43210',
+  };
+
+  it('accepts a complete request', () => {
+    expect(validateRequestAccess(valid)).toEqual({});
+  });
+
+  it('requires every field', () => {
+    expect(validateRequestAccess({ company: '', name: ' ', email: '', phone: '' })).toEqual({
+      company: 'Enter your company name',
+      name: 'Enter your full name',
+      email: 'Enter your email address',
+      phone: 'Enter your phone number',
+    });
+  });
+
+  it('rejects a malformed work email', () => {
+    expect(validateRequestAccess({ ...valid, email: 'priya@' })).toEqual({
+      email: 'Enter a valid email address',
+    });
+  });
+
+  it('accepts common phone formats', () => {
+    for (const phone of ['9876543210', '+919876543210', '098765 43210', '+91-98765-43210']) {
+      expect(validateRequestAccess({ ...valid, phone })).toEqual({});
+    }
+  });
+
+  it('rejects phone numbers with letters or the wrong number of digits', () => {
+    for (const phone of ['98765', '98765abcde', '+91 98765 43210 12345 6']) {
+      expect(validateRequestAccess({ ...valid, phone })).toEqual({
+        phone: 'Enter a valid phone number',
+      });
+    }
   });
 });
