@@ -7,7 +7,7 @@ import { GoogleIcon, MailIcon } from '@/components/ui/icons';
 import { PasswordField } from '@/components/ui/password-field';
 import { TextField } from '@/components/ui/text-field';
 import { validateLogin, type FieldErrors } from '@/lib/auth-validation';
-import { AuthLink, TEXT_LINK_CLASSES } from './auth-link';
+import { AuthLink } from './auth-link';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
@@ -25,11 +25,6 @@ export function LoginForm() {
     }
     // TODO(Phase 1b): call the sign-in API here.
     setNotice("Sign-in isn't connected yet.");
-  }
-
-  function handleCreateAccount() {
-    // TODO: decide whether builders sign up themselves or request access.
-    setNotice("Account sign-up isn't available yet.");
   }
 
   function handleGoogle() {
@@ -83,10 +78,7 @@ export function LoginForm() {
       </Button>
 
       <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-        New here?{' '}
-        <button type="button" onClick={handleCreateAccount} className={TEXT_LINK_CLASSES}>
-          Create an account
-        </button>
+        New here? <AuthLink href="/request-access">Request access</AuthLink>
       </p>
     </div>
   );

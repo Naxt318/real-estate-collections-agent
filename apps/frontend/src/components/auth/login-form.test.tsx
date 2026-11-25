@@ -39,10 +39,13 @@ describe('LoginForm', () => {
     expect(screen.getByRole('status')).toHaveTextContent("Google sign-in isn't connected yet.");
   });
 
-  it('has a create-account placeholder', async () => {
+  it('sends new builders to request access instead of offering sign-up', () => {
     render(<LoginForm />);
-    await userEvent.click(screen.getByRole('button', { name: 'Create an account' }));
-    expect(screen.getByRole('status')).toHaveTextContent("Account sign-up isn't available yet.");
+    expect(screen.getByRole('link', { name: 'Request access' })).toHaveAttribute(
+      'href',
+      '/request-access',
+    );
+    expect(screen.queryByRole('button', { name: 'Create an account' })).not.toBeInTheDocument();
   });
 
   it('lets the user show the password', async () => {
